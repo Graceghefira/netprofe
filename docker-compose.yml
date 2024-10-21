@@ -1,0 +1,21 @@
+version: "3"
+
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    restart: unless-stopped
+    tty: true
+    volumes:
+      - ./:/var/www/html  # Path yang benar untuk file HTML
+      - ./nginx/conf.d:/etc/nginx/conf.d/  # Folder konfigurasi Nginx
+      - /etc/letsencrypt:/etc/letsencrypt:ro  # Sertifikat SSL
+    ports:
+      - "80:80"  # Port HTTP
+      - "443:443"  # Port HTTPS
+    networks:
+      - webnet  # Jaringan web untuk menghubungkan container
+
+networks:
+  webnet:
+    driver: bridge
