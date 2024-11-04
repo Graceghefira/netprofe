@@ -19,16 +19,17 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header Host $http_host;
         proxy_set_header Cookie $http_cookie;
-        proxy_pass http://wireguard-ui:5000/;
+        proxy_pass http://wireguard-ui:5000/;  # Pastikan ini adalah nama layanan Docker yang benar
     }
 
     location /wireguard-ui/ {
-        proxy_pass http://wireguard-ui:5000/;
+        proxy_pass http://wireguard-ui:80/;  # Pastikan port ini sesuai dengan port WireGuard UI
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header Host $http_host;
         proxy_set_header Cookie $http_cookie;
-        proxy_redirect off;
+        proxy_redirect off;  # Sesuaikan ini jika diperlukan
     }
 }
+
