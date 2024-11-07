@@ -1,5 +1,5 @@
 # Gunakan image PHP dengan FPM
-FROM php:8.2-fpm
+FROM php:8.2-fpm as php
 
 # Set pengguna root untuk menghindari masalah izin
 USER root
