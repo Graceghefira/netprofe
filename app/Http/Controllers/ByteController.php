@@ -431,6 +431,9 @@ class ByteController extends Controller
     }
 }
 
+
+
+
     public function updateUserBytesFromMikrotik()
 {
     try {
@@ -501,5 +504,111 @@ class ByteController extends Controller
         return response()->json(['error' => $e->getMessage()], 500);
     }
 }
+
+public function getHotspotUsersByUniqueRole(Request $request)
+{
+    try {
+        // Get the role and date range from the request
+        $role = $request->input('role');
+        $startDate = $request->input('startDate');
+        $endDate = $request->input('endDate');
+
+        // Validate if startDate or endDate is missing
+        if (!$startDate || !$endDate) {
+            return response()->json(['error' => 'Tanggal awal dan akhir harus disediakan'], 400);
+        }
+
+        // Adjust startDate and endDate to cover the full days
+        $startDate = $startDate . ' 00:00:00';
+        $endDate = $endDate . ' 23:59:59';
+
+        // Build the initial query
+        $query = DB::table('user_bytes_log')
+            ->select(
+                DB::raw('DATE(timestamp) as date'),
+                DB::raw('SUM(bytes_in) as total_bytes_in'),
+                DB::raw('SUM(bytes_out) as total_bytes_out'),
+                DB::raw('(SUM(bytes_in) + SUM(bytes_out)) as total_bytes')
+            )
+            ->whereBetween('timestamp', [$startDate, $endDate]); // Filter by date range
+
+        // Add role filtering only if a specific role is specified and not "All"
+        if ($role !== "All") {
+            $query->where('role', $role);
+        }
+
+        // Group by date and order results
+        $logs = $query->groupBy(DB::raw('DATE(timestamp)'))
+            ->orderBy(DB::raw('DATE(timestamp)'), 'asc')
+            ->get();
+
+        // Calculate overall totals for bytes_in and bytes_out
+        $totalBytesIn = $logs->sum('total_bytes_in');
+        $totalBytesOut = $logs->sum('total_bytes_out');
+        $totalBytes = $totalBytesIn + $totalBytesOut;
+
+        // Loop to get the largest user per day and all users for the specified role or all roles
+        foreach ($logs as $log) {
+            // Get the user with the highest total bytes for the day
+            $largestUserQuery = DB::table('user_bytes_log')
+                ->select(
+                    'user_name',
+                    DB::raw('(bytes_in + bytes_out) as total_user_bytes')
+                )
+                ->whereDate('timestamp', $log->date); // Only for that day
+
+            // Add role filtering if role is specified and not "All"
+            if ($role !== "All") {
+                $largestUserQuery->where('role', $role);
+            }
+
+            // Get the largest user for the day
+            $largestUser = $largestUserQuery->orderBy('total_user_bytes', 'desc')->first();
+
+            // Calculate the largest user's contribution as a percentage of total bytes
+            $largestUserPercentage = ($largestUser && $log->total_bytes > 0) ? round(($largestUser->total_user_bytes / $log->total_bytes) * 100) : 0;
+
+            // Add the largest user info to the day's log
+            $log->largest_user = [
+                'user_name' => $largestUser->user_name ?? null,
+                'percentage' => $largestUserPercentage . "%" // Rounded percentage
+            ];
+
+            // Get all users for that specific day and role, or all roles if role is "All"
+            $usersQuery = DB::table('user_bytes_log')
+                ->select(
+                    'user_name',
+                    DB::raw('SUM(bytes_in) as total_bytes_in'),
+                    DB::raw('SUM(bytes_out) as total_bytes_out'),
+                    DB::raw('(SUM(bytes_in) + SUM(bytes_out)) as total_user_bytes')
+                )
+                ->whereDate('timestamp', $log->date) // Only for that day
+                ->groupBy('user_name') // Group by user name
+                ->orderBy('total_user_bytes', 'desc');
+
+            // Add role filtering if role is specified and not "All"
+            if ($role !== "All") {
+                $usersQuery->where('role', $role);
+            }
+
+            // Retrieve users for that day
+            $users = $usersQuery->get();
+
+            // Add all user info to the day's log
+            $log->all_users = $users;
+        }
+
+        // Return the response as JSON
+        return response()->json([
+            'details' => $logs, // Daily bytes_in, bytes_out, total, largest user, and all users
+            'total_bytes_in' => $totalBytesIn,
+            'total_bytes_out' => $totalBytesOut,
+            'total_bytes' => $totalBytes,
+            'role' => $role, // The specified role or "All"
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['error' => $e->getMessage()], 500);
+    }
+    }
 
 }

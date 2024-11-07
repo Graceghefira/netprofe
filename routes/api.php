@@ -11,6 +11,7 @@ use App\Http\Controllers\FileController;
 use App\Http\Controllers\HotspotProfileController;
 use App\Http\Controllers\MenuController;
 use App\Http\Controllers\TerminalController;
+use App\Http\Controllers\testMqttConnection;
 use App\Http\Controllers\WebBlockController;
 use App\Http\Controllers\WebsocketController;
 
@@ -20,7 +21,9 @@ Route::get('/user', function (Request $request) {
 
 Route::post('/mikrotik/add-Hotspot-User', [MikrotikController::class, 'addHotspotUser']);
 Route::post('/mikrotik/add-hotspot-login', [MikrotikController::class, 'addHotspotUser1']);
+Route::post('/mikrotik/add-hotspot-login-by-time', [MikrotikController::class, 'addHotspotUserByExpiryTime']);
 Route::get('/mikrotik/get-Hotspot-users', [MikrotikController::class, 'getHotspotUsers1']);
+Route::post('/mikrotik/get-Hotspot-test', [MikrotikController::class, 'updateAllHotspotUsersByPhoneNumber']);
 Route::get('/mikrotik/get-Hotspot-users-byte', [MikrotikController::class, 'getHotspotUsersByte']);
 Route::get('/mikrotik/get-Hotspot-users/{profile_name}', [MikrotikController::class, 'getHotspotUsersByProfileName']);
 Route::get('/mikrotik/get-Hotspot-by-phone/{no_hp}', [MikrotikController::class, 'getHotspotUserByPhoneNumber']);
@@ -53,6 +56,7 @@ Route::delete('/mikrotik/delete-file/{fileName}', [FileController::class, 'delet
 Route::get('/mikrotik/get-data-users', [ByteController::class, 'updateUserBytesFromMikrotik']);
 Route::post('/mikrotik/get-data-by-date', [ByteController::class, 'getHotspotUsersByDateRange1']);
 Route::post('/mikrotik/get-data-by-date-pagi', [ByteController::class, 'getHotspotUsersByDateRangeWithLoginCheck']);
+Route::post('/mikrotik/get-data-by-date-role', [ByteController::class, 'getHotspotUsersByUniqueRole']);
 Route::get('/mikrotik/get-data-all-profile', [ByteController::class, 'getHotspotProfile']);
 Route::delete('/mikrotik/deleteExpiredHotspotUsers', [ByteController::class, 'deleteExpiredHotspotUsers']);
 Route::delete('/mikrotik/deleteExpiredHotspotUsersByPhone/{no_hp}', [ByteController::class, 'deleteHotspotUserByPhoneNumber']);
@@ -75,7 +79,11 @@ Route::delete('/mikrotik/delete-lease/{address}', [DHCPController::class, 'delet
 
 Route::get('/mikrotik-logs', [WebsocketController::class, 'getAndBroadcastMikrotikLogs']);
 Route::get('/mikrotik/get-logs', [WebsocketController::class, 'getLogs']);
+Route::post('/sensend-messaged-message', [WebsocketController::class, 'sendMessage']);
+Route::get('/Lease', [WebsocketController::class, 'getLeasesRealtime']);
+Route::post('/Log', [WebsocketController::class, 'getLogs']);
 
+Route::get('/mqtt-Connection', [testMqttConnection::class, 'testMqttConnection']);
 
 
 Route::put('/login', [AuthController::class, 'login']);

@@ -219,6 +219,7 @@ class DHCPController extends Controller
         }
     }
 
+
     public function getLeases()
     {
         // Panggil fungsi getClient untuk mendapatkan koneksi Mikrotik

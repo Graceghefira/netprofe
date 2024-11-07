@@ -19,8 +19,7 @@ Schedule::call(function () {
     $controller->updateUserBytesFromMikrotik();
 })->daily();
 
- // Menjadwalkan fungsi untuk mengambil dan menyiarkan log setiap menit
 Schedule::call(function () {
-    $controller = app(\App\Http\Controllers\WebsocketController::class);
-    $controller->sendLogUpdate();
-})->everyMinute();  // Dijalankan setiap menit (ubah sesuai kebutuhan)
+    $controller = new \App\Http\Controllers\MikrotikController();
+    $controller->updateAllHotspotUsersByPhoneNumber();
+})->everyMinute();

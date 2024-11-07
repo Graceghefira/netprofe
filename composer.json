@@ -12,8 +12,9 @@
         "laravel/framework": "^11.9",
         "laravel/reverb": "^1.0",
         "laravel/sanctum": "^4.0",
-        "laravel/tinker": "^2.10",
+        "laravel/tinker": "^2.9",
         "php-mqtt/client": "^2.1",
+        "php-mqtt/laravel-client": "^1.5",
         "pusher/pusher-php-server": "^7.2",
         "simplesoftwareio/simple-qrcode": "^4.2",
         "spatie/laravel-rdap": "^1.1"
