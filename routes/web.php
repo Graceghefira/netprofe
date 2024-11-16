@@ -11,7 +11,7 @@ Route::get('/', function () {
 });
 
 Route::get('/index', function () {
-    return view('index');
+    return 'hello world';
 });
 
 Route::get('/test-mqtt', function () {
