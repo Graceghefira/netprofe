@@ -421,13 +421,17 @@ class MikrotikController extends Controller
         $existingUsers = $client->query($checkQuery)->read();
 
         // Set default expiry time to 6 hours (360 minutes)
-        $defaultExpiryTime = Carbon::now()->addHours(6);
+        $expiryExtensionHours = 6;
+        $defaultExpiryTime = Carbon::now()->addHours($expiryExtensionHours);
 
         if (!empty($existingUsers)) {
             $comment = $existingUsers[0]['comment'] ?? '';
             $existingName = $name;
             $expiryTime = null;
-            $isDisabled = $existingUsers[0]['disabled'] === 'true';
+
+            // Cek status di comment
+            $isInactive = strpos($comment, 'status: inactive') !== false;
+            $isActive = strpos($comment, 'status: active') !== false;
 
             if (strpos($comment, 'Expiry:') !== false) {
                 $parts = explode(', ', $comment);
@@ -440,59 +444,73 @@ class MikrotikController extends Controller
                 }
             }
 
-            // Update expiry time regardless of the disabled status
-            if ($expiryTime && $expiryTime->greaterThan(Carbon::now())) {
-                $newExpiryTime = $expiryTime->addHours(6);
-            } else {
-                $newExpiryTime = $defaultExpiryTime;
+            // Jika status user adalah inactive, hanya beritahu tanpa memperbarui apapun
+            if ($isInactive) {
+                return response()->json([
+                    'message' => 'User ditemukan namun dalam status inactive. Tidak ada perubahan yang dilakukan.'
+                ]);
             }
 
-            // Update komentar dengan status active, nama, dan expiry baru
-            $updatedComment = "status: active, {$existingName}, Expiry: " . $newExpiryTime->format('Y-m-d H:i:s');
-
-            // Update user di MikroTik dan set disabled to false (active user)
-            $updateUserQuery = (new Query('/ip/hotspot/user/set'))
-                ->equal('.id', $existingUsers[0]['.id'])
-                ->equal('disabled', 'false') // Set user to active (enabled)
-                ->equal('comment', $updatedComment);
-
-            $client->query($updateUserQuery)->read();
-
-            foreach ($menu_ids as $menu_id) {
-                $existingOrder = Order::where('no_hp', $no_hp)->where('menu_id', $menu_id)->first();
-
-                if ($existingOrder) {
-                    $existingOrder->update([
-                        'expiry_at' => $newExpiryTime->format('Y-m-d H:i:s')
-                    ]);
+            // Update expiry time jika user sudah active
+            if ($isActive) {
+                if ($expiryTime && $expiryTime->greaterThan(Carbon::now())) {
+                    $newExpiryTime = $expiryTime->addHours($expiryExtensionHours);
                 } else {
-                    Order::create([
-                        'no_hp' => $no_hp,
-                        'menu_id' => $menu_id,
-                        'expiry_at' => $newExpiryTime->format('Y-m-d H:i:s')
-                    ]);
+                    $newExpiryTime = $defaultExpiryTime;
                 }
+
+                // Update komentar dengan status active, nama, dan expiry baru
+                $updatedComment = "status: active, {$existingName}, Expiry: " . $newExpiryTime->format('Y-m-d H:i:s');
+
+                // Update user di MikroTik dan set status
+                $updateUserQuery = (new Query('/ip/hotspot/user/set'))
+                    ->equal('.id', $existingUsers[0]['.id'])
+                    ->equal('comment', $updatedComment);
+
+                $client->query($updateUserQuery)->read();
+
+                foreach ($menu_ids as $menu_id) {
+                    $existingOrder = Order::where('no_hp', $no_hp)->where('menu_id', $menu_id)->first();
+
+                    if ($existingOrder) {
+                        $existingOrder->update([
+                            'expiry_at' => $newExpiryTime->format('Y-m-d H:i:s')
+                        ]);
+                    } else {
+                        Order::create([
+                            'no_hp' => $no_hp,
+                            'menu_id' => $menu_id,
+                            'expiry_at' => $newExpiryTime->format('Y-m-d H:i:s')
+                        ]);
+                    }
+                }
+
+                if (!empty($no_hp)) {
+                    $loginLink = "http://192.168.51.1/login?username={$no_hp}&password={$no_hp}";
+                    $this->sendwa($no_hp, $loginLink);
+                } else {
+                    return response()->json([
+                        'message' => 'Nomor HP tidak valid atau kosong.',
+                        'status' => 'failed'
+                    ], 400);
+                }
+
+                return response()->json([
+                    'message' => 'User diperpanjang dan login berhasil. Expiry time: ' . $newExpiryTime->format('Y-m-d H:i:s'),
+                    'login_link' => $loginLink ?? null,
+                    'Waktu Defaultnya' => '6 Jam',
+                    'note' => 'Ini Link Login kalo lupa ya, kalo kamu udah login gak usah di pake sama waktu kamu juga udah diextend'
+                ]);
             }
-
-            $loginLink = "http://192.168.51.1/login?username={$no_hp}&password={$no_hp}";
-            $this->sendwa($no_hp, $loginLink);
-
-            return response()->json([
-                'message' => 'User diperpanjang dan login berhasil. Expiry time: ' . $newExpiryTime->format('Y-m-d H:i:s'),
-                'login_link' => $loginLink,
-                'Waktu Defaultnya' => '6 Jam',
-                'note' => 'Ini Link Login kalo lupa ya, kalo kamu udah login gak usah di pake sama waktu kamu juga udah diextend'
-            ]);
         } else {
             $newExpiryTime = $defaultExpiryTime;
 
-            // Tambahkan user baru ke MikroTik dan set disabled ke false
+            // Tambahkan user baru ke MikroTik dan set status ke inactive
             $addUserQuery = (new Query('/ip/hotspot/user/add'))
                 ->equal('name', $no_hp)
                 ->equal('password', $no_hp)
                 ->equal('profile', $profile)
-                ->equal('disabled', 'false') // Set user to active (enabled)
-                ->equal('comment', "status: inactive,name: {$name}, Expiry: {$newExpiryTime->format('Y-m-d H:i:s')}");
+                ->equal('comment', "status: inactive, name: {$name}, Expiry: {$newExpiryTime->format('Y-m-d H:i:s')}");
 
             $client->query($addUserQuery)->read();
 
@@ -504,12 +522,19 @@ class MikrotikController extends Controller
                 ]);
             }
 
-            $loginLink = "http://192.168.51.1/login?username={$no_hp}&password={$no_hp}";
-            $this->sendwa($no_hp, $loginLink);
+            if (!empty($no_hp)) {
+                $loginLink = "http://192.168.51.1/login?username={$no_hp}&password={$no_hp}";
+                $this->sendwa($no_hp, $loginLink);
+            } else {
+                return response()->json([
+                    'message' => 'Nomor HP tidak valid atau kosong.',
+                    'status' => 'failed'
+                ], 400);
+            }
 
             return response()->json([
                 'message' => 'User baru ditambahkan dan login berhasil. Expiry time: ' . $newExpiryTime->format('Y-m-d H:i:s'),
-                'login_link' => $loginLink,
+                'login_link' => $loginLink ?? null,
                 'Waktu Defaultnya' => '6 Jam',
                 'note' => 'Ini Link Login kalo lupa ya, kalo kamu udah login gak usah di pake sama waktu kamu juga udah diextend'
             ]);
@@ -749,110 +774,98 @@ class MikrotikController extends Controller
     }
 
     public function updateAllHotspotUsersByPhoneNumber()
-    {
-        try {
-            $client = $this->getClient();
+{
+    try {
+        $client = $this->getClient();
 
-            // Ambil semua pengguna yang saat ini aktif dari tab "Active" MikroTik
-            $getActiveUsersQuery = new Query('/ip/hotspot/active/print');
-            $activeUsers = $client->query($getActiveUsersQuery)->read();
+        // Ambil semua pengguna yang saat ini aktif dari tab "Active" MikroTik
+        $getActiveUsersQuery = new Query('/ip/hotspot/active/print');
+        $activeUsers = $client->query($getActiveUsersQuery)->read();
 
-            // Jika tidak ada pengguna aktif, hentikan proses dan beri pesan
-            if (empty($activeUsers)) {
-                return response()->json(['message' => 'Tidak ada pengguna aktif.'], 200);
+        // Jika tidak ada pengguna aktif, hentikan proses dan beri pesan
+        if (empty($activeUsers)) {
+            return response()->json(['message' => 'Tidak ada pengguna aktif.'], 200);
+        }
+
+        // Ambil nomor telepon pengguna yang aktif dari daftar pengguna aktif
+        $activePhoneNumbers = array_column($activeUsers, 'user');
+
+        // Loop melalui setiap nomor telepon yang aktif
+        foreach ($activePhoneNumbers as $no_hp) {
+            // Cek semua pengguna dengan nama yang sama di daftar utama "Users" di MikroTik
+            $getUserQuery = (new Query('/ip/hotspot/user/print'))->where('name', $no_hp);
+            $users = $client->query($getUserQuery)->read();
+
+            // Jika pengguna tidak ditemukan di daftar utama "Users", lewati
+            if (empty($users)) {
+                continue;
             }
 
-            // Ambil nomor telepon pengguna yang aktif dari daftar pengguna aktif
-            $activePhoneNumbers = array_column($activeUsers, 'user');
+            // Loop untuk setiap pengguna yang cocok di daftar utama "Users"
+            foreach ($users as $user) {
+                $userId = $user['.id'];
+                $comment = $user['comment'] ?? ''; // Komentar yang mungkin menyimpan status
 
-            // Loop melalui setiap nomor telepon yang aktif
-            foreach ($activePhoneNumbers as $no_hp) {
-                // Cek apakah pengguna ini ada di daftar utama "Users" di MikroTik
-                $getUserQuery = (new Query('/ip/hotspot/user/print'))->where('name', $no_hp);
-                $users = $client->query($getUserQuery)->read();
-
-                // Jika pengguna tidak ditemukan di daftar utama "Users", lewati
-                if (empty($users)) {
+                // Jika pengguna sudah memiliki status active, lewati pengguna ini
+                if (strpos($comment, 'status: active') !== false) {
                     continue;
                 }
 
-                // Loop untuk setiap pengguna yang cocok di daftar utama "Users"
-                foreach ($users as $user) {
-                    $userId = $user['.id'];
-                    $comment = $user['comment'] ?? ''; // Komentar yang mungkin menyimpan status
+                // Ambil pesanan yang masih berlaku (expiry_at kurang dari 5 menit dari sekarang)
+                $validOrders = Order::where('no_hp', $no_hp)
+                    ->where('expiry_at', '>', Carbon::now()->subMinutes(5))
+                    ->get();
 
-                    // Jika pengguna sudah memiliki status active, lewati pengguna ini
-                    if (strpos($comment, 'status: active') !== false) {
-                        continue;
-                    }
+                // Jika tidak ada pesanan yang masih berlaku, lewati pengguna ini
+                if ($validOrders->isEmpty()) {
+                    continue;
+                }
 
-                    // Ambil pesanan yang masih berlaku (expiry_at kurang dari 5 menit dari sekarang)
-                    $validOrders = Order::where('no_hp', $no_hp)
-                        ->where('expiry_at', '>', Carbon::now()->subMinutes(5))
-                        ->get();
+                // Ambil menu_id dari pesanan yang masih berlaku
+                $menu_ids = $validOrders->pluck('menu_id')->toArray();
 
-                    // Jika tidak ada pesanan yang masih berlaku, lewati pengguna ini
-                    if ($validOrders->isEmpty()) {
-                        continue;
-                    }
+                // Hitung total waktu kadaluarsa berdasarkan menu_ids
+                $orderDetails = $this->calculateOrderDetails($menu_ids);
 
-                    // Ambil menu_id dari pesanan yang masih berlaku
-                    $menu_ids = $validOrders->pluck('menu_id')->toArray();
+                // Jika tidak ada waktu kadaluarsa yang valid, lewati pengguna ini
+                if (is_null($orderDetails) || $orderDetails->total_expiry_time <= 0) {
+                    continue;
+                }
 
-                    // Hitung total waktu kadaluarsa berdasarkan menu_ids
-                    $orderDetails = $this->calculateOrderDetails($menu_ids);
+                // Set waktu kadaluarsa baru mulai dari sekarang
+                $newExpiryTime = Carbon::now()->addMinutes($orderDetails->total_expiry_time);
 
-                    // Jika tidak ada waktu kadaluarsa yang valid, lewati pengguna ini
-                    if (is_null($orderDetails) || $orderDetails->total_expiry_time <= 0) {
-                        continue;
-                    }
+                // Ambil 'name' dari komentar jika sudah ada, atau gunakan $no_hp jika tidak ada
+                if (preg_match('/name: ([^,]+)/', $comment, $matches)) {
+                    $name = $matches[1];
+                } else {
+                    $name = $no_hp;
+                }
 
-                    // Set waktu kadaluarsa baru mulai dari sekarang
-                    $newExpiryTime = Carbon::now()->addMinutes($orderDetails->total_expiry_time);
+                // Update pengguna di MikroTik dengan komentar baru tanpa mengganti 'name' yang sudah ada
+                $updatedComment = "status: active, name: {$name}, Expiry: {$newExpiryTime->format('Y-m-d H:i:s')}";
+                $updateUserQuery = (new Query('/ip/hotspot/user/set'))
+                    ->equal('.id', $userId)
+                    ->equal('comment', $updatedComment);
 
-                    // Ambil 'name' dari komentar jika sudah ada, atau gunakan $no_hp jika tidak ada
-                    if (preg_match('/name: ([^,]+)/', $comment, $matches)) {
-                        $name = $matches[1];
-                    } else {
-                        $name = $no_hp;
-                    }
+                $client->query($updateUserQuery)->read();
 
-                    // Update pengguna di MikroTik dengan komentar baru tanpa mengganti 'name' yang sudah ada
-                    $updatedComment = "status: active, name: {$name}, expiry: {$newExpiryTime->format('Y-m-d H:i:s')}";
-                    $updateUserQuery = (new Query('/ip/hotspot/user/set'))
-                        ->equal('.id', $userId)
-                        ->equal('comment', $updatedComment);
-
-                    $client->query($updateUserQuery)->read();
-
-                    // Update waktu kadaluarsa di database untuk setiap pesanan yang masih berlaku
-                    foreach ($validOrders as $order) {
-                        $order->update([
-                            'expiry_at' => $newExpiryTime->format('Y-m-d H:i:s')
-                        ]);
-                    }
+                // Update waktu kadaluarsa di database untuk setiap pesanan yang masih berlaku
+                foreach ($validOrders as $order) {
+                    $order->update([
+                        'expiry_at' => $newExpiryTime->format('Y-m-d H:i:s')
+                    ]);
                 }
             }
-
-            return response()->json([
-                'message' => 'Komentar dan waktu kadaluarsa semua pengguna yang sesuai berhasil diperbarui.',
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json(['message' => $e->getMessage()], 500);
         }
+
+        return response()->json([
+            'message' => 'Komentar dan waktu kadaluarsa semua pengguna yang sesuai berhasil diperbarui.',
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json(['message' => $e->getMessage()], 500);
     }
-
-
-
-
-
-
-
-
-
-
-
-
+    }
 
 }

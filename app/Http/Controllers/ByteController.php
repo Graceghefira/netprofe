@@ -429,10 +429,7 @@ class ByteController extends Controller
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
-}
-
-
-
+    }
 
     public function updateUserBytesFromMikrotik()
 {
@@ -503,9 +500,9 @@ class ByteController extends Controller
         Log::error('Error saat updateUserBytesFromMikrotik: ' . $e->getMessage());
         return response()->json(['error' => $e->getMessage()], 500);
     }
-}
+    }
 
-public function getHotspotUsersByUniqueRole(Request $request)
+    public function getHotspotUsersByUniqueRole(Request $request)
 {
     try {
         // Get the role and date range from the request
