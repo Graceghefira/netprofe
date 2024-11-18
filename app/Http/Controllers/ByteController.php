@@ -102,75 +102,79 @@ class ByteController extends Controller
     }
 
     public function deleteExpiredHotspotUsers()
-    {
-        // Lock to avoid simultaneous executions
-        $lock = Cache::lock('mikrotik_hotspot_user_operation', 10);
+{
+    // Lock to avoid simultaneous executions
+    $lock = Cache::lock('mikrotik_hotspot_user_operation', 10);
 
-        if ($lock->get()) {
-            try {
-                // Initialize MikroTik client
-                $client = $this->getClient();
-                $query = new Query('/ip/hotspot/user/print');
-                $users = $client->query($query)->read();
+    if ($lock->get()) {
+        try {
+            // Initialize MikroTik client
+            $client = $this->getClient();
+            $query = new Query('/ip/hotspot/user/print');
+            $users = $client->query($query)->read();
 
-                foreach ($users as $user) {
-                    // Check if there is an 'Expiry' comment
-                    if (isset($user['comment']) && preg_match('/Expiry:\s*([\d\/\-:\s]+)/', $user['comment'], $matches)) {
-                        try {
-                            $expiryTime = null;
+            foreach ($users as $user) {
+                // Check if there is an 'Expiry' comment
+                if (isset($user['comment']) && preg_match('/Expiry:\s*([\d\/\-:\s]+)/', $user['comment'], $matches)) {
+                    try {
+                        $expiryTime = null;
 
-                            // Attempt to parse the expiry date with different formats
-                            if (strpos($matches[1], '/') !== false) {
-                                // Format with slashes 'Y/m/d H:i:s'
-                                $expiryTime = Carbon::createFromFormat('Y/m/d H:i:s', $matches[1])->setTimezone(config('app.timezone'));
-                            } elseif (strpos($matches[1], '-') !== false) {
-                                // Format with dashes 'Y-m-d H:i:s'
-                                $expiryTime = Carbon::createFromFormat('Y-m-d H:i:s', $matches[1])->setTimezone(config('app.timezone'));
-                            }
-
-                            // If expiryTime is set, proceed to check the current time
-                            if ($expiryTime && Carbon::now()->greaterThanOrEqualTo($expiryTime)) {
-
-                                // Step 1: Delete the hotspot user
-                                $deleteQuery = (new Query('/ip/hotspot/user/remove'))->equal('.id', $user['.id']);
-                                $client->query($deleteQuery)->read();
-
-                                // Step 2: Disconnect any active sessions associated with the user
-                                $activeSessionsQuery = (new Query('/ip/hotspot/active/print'))
-                                    ->where('user', $user['name']); // Filter by the username
-
-                                $activeSessions = $client->query($activeSessionsQuery)->read();
-
-                                // Loop through active sessions and remove them
-                                foreach ($activeSessions as $session) {
-                                    $terminateSessionQuery = (new Query('/ip/hotspot/active/remove'))
-                                        ->equal('.id', $session['.id']); // Terminate the session
-
-                                    $client->query($terminateSessionQuery)->read();
-                                }
-                            }
-                        } catch (\Exception $e) {
-                            // Continue to the next user if there's an error
-                            continue;
+                        // Attempt to parse the expiry date with different formats
+                        if (strpos($matches[1], '/') !== false) {
+                            // Format with slashes 'Y/m/d H:i:s'
+                            $expiryTime = Carbon::createFromFormat('Y/m/d H:i:s', $matches[1])->setTimezone(config('app.timezone'));
+                        } elseif (strpos($matches[1], '-') !== false) {
+                            // Format with dashes 'Y-m-d H:i:s'
+                            $expiryTime = Carbon::createFromFormat('Y-m-d H:i:s', $matches[1])->setTimezone(config('app.timezone'));
                         }
+
+                        // If expiryTime is set, proceed to check the current time
+                        if ($expiryTime && Carbon::now()->greaterThanOrEqualTo($expiryTime)) {
+
+                            // Step 1: Delete the hotspot user
+                            $deleteQuery = (new Query('/ip/hotspot/user/remove'))->equal('.id', $user['.id']);
+                            $client->query($deleteQuery)->read();
+
+                            // Step 2: Disconnect any active sessions associated with the user
+                            $activeSessionsQuery = (new Query('/ip/hotspot/active/print'))
+                                ->where('user', $user['name']); // Filter by the username
+
+                            $activeSessions = $client->query($activeSessionsQuery)->read();
+
+                            // Loop through active sessions and remove them
+                            foreach ($activeSessions as $session) {
+                                $terminateSessionQuery = (new Query('/ip/hotspot/active/remove'))
+                                    ->equal('.id', $session['.id']); // Terminate the session
+
+                                $client->query($terminateSessionQuery)->read();
+                            }
+                        }
+                    } catch (\Exception $e) {
+                        // Continue to the next user if there's an error
+                        continue;
                     }
                 }
-
-                return response()->json(['message' => 'Expired hotspot users and their active connections deleted successfully']);
-            } catch (\Exception $e) {
-                // Catch all other errors
-                return response()->json(['error' => $e->getMessage()], 500);
-            } finally {
-                // Release the lock after the operation
-                $lock->release();
             }
-        } else {
-            return response()->json(['message' => 'Another hotspot user operation is in progress'], 429);
+
+            // Panggil fungsi dari controller lain setelah penghapusan selesai
+            $hotspotController = app()->make(\App\Http\Controllers\MqttController::class);
+            $hotspotController->getHotspotUsers1();
+
+            return response()->json(['message' => 'Expired hotspot users and their active connections deleted successfully']);
+        } catch (\Exception $e) {
+            // Catch all other errors
+            return response()->json(['error' => $e->getMessage()], 500);
+        } finally {
+            // Release the lock after the operation
+            $lock->release();
         }
+    } else {
+        return response()->json(['message' => 'Another hotspot user operation is in progress'], 429);
+    }
     }
 
     public function deleteHotspotUserByPhoneNumber($no_hp)
-    {
+{
     try {
         $client = $this->getClient();
 
@@ -209,6 +213,10 @@ class ByteController extends Controller
         if (in_array($user['profile'], ['Owner', 'staff'])) {
             AkunKantor::where('no_hp', $no_hp)->delete();
         }
+
+        // Step 4: Call getHotspotUsers1 from another controller
+        $hotspotController = app()->make(\App\Http\Controllers\MqttController::class);
+        $hotspotController->getHotspotUsers1();
 
         return response()->json(['message' => 'Hotspot user deleted successfully']);
     } catch (\Exception $e) {
