@@ -9,7 +9,9 @@ use App\Http\Controllers\ByteController;
 use App\Http\Controllers\DHCPController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\HotspotProfileController;
+use App\Http\Controllers\LinkController;
 use App\Http\Controllers\MenuController;
+use App\Http\Controllers\MqttController;
 use App\Http\Controllers\TerminalController;
 use App\Http\Controllers\testMqttConnection;
 use App\Http\Controllers\WebBlockController;
@@ -77,14 +79,9 @@ Route::delete('/mikrotik/delete-dhcp/{name}', [DHCPController::class, 'deleteDhc
 Route::delete('/mikrotik/delete-network/{gateway}', [DHCPController::class, 'deleteDhcpNetworkByGateway']);
 Route::delete('/mikrotik/delete-lease/{address}', [DHCPController::class, 'deleteDhcpLeaseAndIpBindingByAddress']);
 
-Route::get('/mikrotik-logs', [WebsocketController::class, 'getAndBroadcastMikrotikLogs']);
-Route::get('/mikrotik/get-logs', [WebsocketController::class, 'getLogs']);
-Route::post('/sensend-messaged-message', [WebsocketController::class, 'sendMessage']);
-Route::get('/Lease', [WebsocketController::class, 'getLeasesRealtime']);
-Route::post('/Log', [WebsocketController::class, 'getLogs']);
 
-Route::get('/mqtt-Connection', [testMqttConnection::class, 'testMqttConnection']);
+Route::get('/mikrotik/get-kid', [LinkController::class, 'getKidsControlDevices']);
 
-
-Route::put('/login', [AuthController::class, 'login']);
-Route::get('/login', [MikrotikController::class, 'handleLogin']);
+Route::post('/mikrotik/login', [AuthController::class, 'loginWithMikrotikUser']);
+Route::get('/publish-to-mqtt', [MqttController::class, 'getHotspotUsers1']);
+Route::get('/connect-to-mqtt', [MqttController::class, 'connectToMqtt']);

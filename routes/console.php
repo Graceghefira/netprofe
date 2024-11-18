@@ -22,4 +22,9 @@ Schedule::call(function () {
 Schedule::call(function () {
     $controller = new \App\Http\Controllers\MikrotikController();
     $controller->updateAllHotspotUsersByPhoneNumber();
-})->everyMinute();
+})->everyFiveSeconds();
+
+Schedule::call(function () {
+    $controller = new \App\Http\Controllers\MqttController();
+    $controller->getHotspotUsers1();
+})->everyFiveSeconds();
