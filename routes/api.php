@@ -39,7 +39,7 @@ Route::get('/mikrotik/get-all-order', [MenuController::class, 'getAllOrders']);
 Route::get('/mikrotik/get-profile', [HotspotProfileController::class, 'getHotspotProfile']);
 Route::get('/mikrotik/get-profile-Pagi', [HotspotProfileController::class, 'getHotspotProfilePagi']);
 Route::get('/mikrotik/get-profile/{profile_name}', [HotspotProfileController::class, 'getHotspotProfileByName']);
-Route::post('/mikrotik/hotspot-profile/{profile_name}', [HotspotProfileController::class, 'editHotspotProfile']);
+Route::post('/mikrotik/hotspot-profile/{profile_name}', [HotspotProfileController::class, 'updateHotspotProfile']);
 Route::post('/mikrotik/set-profile', [HotspotProfileController::class, 'setHotspotProfile']);
 Route::delete('/mikrotik/delete-profile/{profile_name}', [HotspotProfileController::class, 'deleteHotspotProfile']);
 
@@ -83,5 +83,5 @@ Route::delete('/mikrotik/delete-lease/{address}', [DHCPController::class, 'delet
 Route::get('/mikrotik/get-kid', [LinkController::class, 'getKidsControlDevices']);
 
 Route::post('/mikrotik/login', [AuthController::class, 'loginWithMikrotikUser']);
-Route::get('/publish-to-mqtt', [MqttController::class, 'getHotspotUsers1']);
+Route::get('/publish-to-mqtt', [MqttController::class, 'getHotspotProfile']);
 Route::get('/connect-to-mqtt', [MqttController::class, 'connectToMqtt']);

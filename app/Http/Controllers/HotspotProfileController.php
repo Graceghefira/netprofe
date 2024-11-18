@@ -61,12 +61,19 @@ class HotspotProfileController extends Controller
                     'updated_at' => now(),   // Timestamp saat ini untuk updated_at
                 ]);
 
+                // Panggil fungsi getHotspotUsers1 setelah update
+                $hotspotController = app()->make(\App\Http\Controllers\MqttController::class);
+                $hotspotController->getHotspotProfile();
+
                 return response()->json([
                     'message' => 'Profile sudah ada, tapi link-nya belum ada. Saya tambahin dulu ya'
                 ], 200);
             }
 
-            // Jika profil dan link sudah ada, beritahukan bahwa tidak ada perubahan yang dilakukan
+            // Jika profil dan link sudah ada, tidak ada perubahan yang dilakukan
+            $hotspotController = app()->make(\App\Http\Controllers\MqttController::class);
+            $hotspotController->getHotspotUsers1();
+
             return response()->json(['message' => 'Profile dan link sudah ada, tidak ada perubahan yang dilakukan'], 200);
         } else {
             // Jika profil belum ada, tambahkan profil baru ke MikroTik
@@ -90,6 +97,10 @@ class HotspotProfileController extends Controller
                 'updated_at' => now(),    // Timestamp saat ini untuk updated_at
             ]);
 
+            // Panggil fungsi getHotspotUsers1 setelah profil berhasil ditambahkan
+            $hotspotController = app()->make(\App\Http\Controllers\MqttController::class);
+            $hotspotController->getHotspotProfile();
+
             return response()->json(['message' => 'Hotspot profile created successfully'], 201);
         }
     } catch (\Exception $e) {
@@ -97,7 +108,6 @@ class HotspotProfileController extends Controller
         return response()->json(['error' => $e->getMessage()], 500);
     }
     }
-
 
     public function getHotspotProfile(Request $request)
 {
@@ -244,167 +254,108 @@ class HotspotProfileController extends Controller
         }
     }
 
-
-    public function editHotspotProfile(Request $request, $profile_name)
+    public function deleteHotspotProfile($profile_name)
 {
-    // Validasi input yang masuk
+    try {
+        // Koneksi ke MikroTik
+        $client = $this->getClient();
+
+        // Query untuk mencari profil berdasarkan nama
+        $checkQuery = (new Query('/ip/hotspot/user/profile/print'))
+            ->where('name', $profile_name);
+
+        // Eksekusi query untuk mencari profil
+        $profiles = $client->query($checkQuery)->read();
+
+        // Jika profil ditemukan
+        if (!empty($profiles)) {
+            $profile_id = $profiles[0]['.id']; // Ambil ID profil
+
+            // Query untuk menghapus profil berdasarkan ID
+            $deleteQuery = (new Query('/ip/hotspot/user/profile/remove'))
+                ->equal('.id', $profile_id);
+
+            // Eksekusi query untuk menghapus profil
+            $client->query($deleteQuery)->read();
+
+            // Panggil fungsi getHotspotUsers1 dari MqttController
+            $hotspotController = app()->make(\App\Http\Controllers\MqttController::class);
+            $hotspotController->getHotspotProfile();
+
+            // Kembalikan pesan sukses
+            return response()->json(['message' => 'Hotspot profile deleted successfully'], 200);
+        } else {
+            // Jika profil tidak ditemukan
+            return response()->json(['message' => 'Profile not found'], 404);
+        }
+    } catch (\Exception $e) {
+        // Tangani error jika ada
+        return response()->json(['error' => $e->getMessage()], 500);
+    }
+    }
+
+    public function updateHotspotProfile(Request $request, $profile_name)
+{
+    // Validasi input
     $request->validate([
-        'shared_users' => 'sometimes|integer|min:1', // Nilai shared_users harus integer minimal 1
-        'rate_limit' => 'sometimes|nullable|string', // Format rate limit, misalnya "10M/10M"
-        'link' => 'sometimes|nullable|string' // Validasi untuk link (sesuaikan dengan kebutuhan)
+        'profile_name' => 'required|string', // Nama profil yang ingin diedit
+        'new_profile_name' => 'nullable|string', // Nama profil baru, opsional
+        'shared_users' => 'nullable|integer', // Jumlah shared users, opsional
+        'rate_limit' => 'nullable|string', // Rate limit, opsional
     ]);
+
+    $profile_name = $request->input('profile_name');
+    $new_profile_name = $request->input('new_profile_name');
+    $shared_users = $request->input('shared_users');
+    $rate_limit = $request->input('rate_limit');
 
     try {
         // Koneksi ke MikroTik
         $client = $this->getClient();
 
-        // Query untuk mendapatkan profil hotspot berdasarkan nama profil
-        $query = new Query('/ip/hotspot/user/profile/print');
-        $profiles = $client->query($query)->read();
+        // Query untuk mencari profil berdasarkan nama
+        $checkQuery = (new Query('/ip/hotspot/user/profile/print'))
+            ->where('name', $profile_name);
 
-        // Cek apakah profil ditemukan
-        $foundProfile = null;
-        foreach ($profiles as $profile) {
-            if ($profile['name'] === $profile_name) {
-                $foundProfile = $profile;
-                break;
+        // Eksekusi query untuk mencari profil
+        $profiles = $client->query($checkQuery)->read();
+
+        // Jika profil ditemukan
+        if (!empty($profiles)) {
+            $profile_id = $profiles[0]['.id']; // Ambil ID profil
+
+            // Query untuk mengedit profil berdasarkan ID
+            $updateQuery = (new Query('/ip/hotspot/user/profile/set'))
+                ->equal('.id', $profile_id);
+
+            // Tambahkan field yang diupdate jika ada
+            if ($new_profile_name) {
+                $updateQuery->equal('name', $new_profile_name);
             }
+            if ($shared_users) {
+                $updateQuery->equal('shared-users', $shared_users);
+            }
+            if ($rate_limit) {
+                $updateQuery->equal('rate-limit', $rate_limit);
+            }
+
+            // Eksekusi query untuk mengedit profil
+            $client->query($updateQuery)->read();
+
+            // Panggil fungsi getHotspotUsers1 dari MqttController
+            $hotspotController = app()->make(\App\Http\Controllers\MqttController::class);
+            $hotspotController->getHotspotProfile();
+
+            // Kembalikan pesan sukses
+            return response()->json(['message' => 'Hotspot profile updated successfully'], 200);
+        } else {
+            // Jika profil tidak ditemukan
+            return response()->json(['message' => 'Profile not found'], 404);
         }
-
-        if (!$foundProfile) {
-            // Jika profil tidak ditemukan, kembalikan pesan 404
-            return response()->json(['message' => 'Profile tidak ditemukan.'], 404);
-        }
-
-        // Siapkan query untuk mengupdate profil berdasarkan .id dari profil yang ditemukan
-        $updateQuery = (new Query('/ip/hotspot/user/profile/set'))
-            ->equal('.id', $foundProfile['.id']);
-
-        // Update shared_users jika ada dalam request
-        if ($request->has('shared_users')) {
-            $updateQuery->equal('shared-users', $request->input('shared_users'));
-        }
-
-        // Update rate_limit jika ada dalam request
-        if ($request->has('rate_limit')) {
-            $updateQuery->equal('rate-limit', $request->input('rate_limit'));
-        }
-
-        // Eksekusi query untuk mengupdate profil di MikroTik
-        $client->query($updateQuery)->read();
-
-        // Update atau tambahkan ke database user_profile_link
-        DB::table('user_profile_link')
-            ->updateOrInsert(
-                ['name' => $profile_name], // Kondisi untuk menemukan record
-                [
-                    'name' => $request->input('name', $profile_name), // Jika ditemukan atau tidak, perbarui dengan nilai ini
-                    'link' => $request->input('link') // Nilai link yang akan diperbarui atau ditambahkan
-                ]
-            );
-
-        // Kembalikan pesan sukses
-        return response()->json(['message' => 'Profile berhasil diperbarui.'], 200);
-
     } catch (\Exception $e) {
-        // Tangani error jika terjadi
+        // Tangani error jika ada
         return response()->json(['error' => $e->getMessage()], 500);
     }
     }
 
-    public function deleteHotspotProfile($profile_name)
-    {
-        try {
-            // Koneksi ke MikroTik
-            $client = $this->getClient();
-
-            // Query untuk mencari profil berdasarkan nama
-            $checkQuery = (new Query('/ip/hotspot/user/profile/print'))
-                ->where('name', $profile_name);
-
-            // Eksekusi query untuk mencari profil
-            $profiles = $client->query($checkQuery)->read();
-
-            // Jika profil ditemukan
-            if (!empty($profiles)) {
-                $profile_id = $profiles[0]['.id']; // Ambil ID profil
-
-                // Query untuk menghapus profil berdasarkan ID
-                $deleteQuery = (new Query('/ip/hotspot/user/profile/remove'))
-                    ->equal('.id', $profile_id);
-
-                // Eksekusi query untuk menghapus profil
-                $client->query($deleteQuery)->read();
-
-                // Kembalikan pesan sukses
-                return response()->json(['message' => 'Hotspot profile deleted successfully'], 200);
-            } else {
-                // Jika profil tidak ditemukan
-                return response()->json(['message' => 'Profile not found'], 404);
-            }
-        } catch (\Exception $e) {
-            // Tangani error jika ada
-            return response()->json(['error' => $e->getMessage()], 500);
-        }
-    }
-
-    public function updateHotspotProfile(Request $request)
-        {
-            // Validasi input
-            $request->validate([
-                'profile_name' => 'required|string', // Nama profil yang ingin diedit
-                'new_profile_name' => 'nullable|string', // Nama profil baru, opsional
-                'shared_users' => 'nullable|integer', // Jumlah shared users, opsional
-                'rate_limit' => 'nullable|string', // Rate limit, opsional
-            ]);
-
-            $profile_name = $request->input('profile_name');
-            $new_profile_name = $request->input('new_profile_name');
-            $shared_users = $request->input('shared_users');
-            $rate_limit = $request->input('rate_limit');
-
-            try {
-                // Koneksi ke MikroTik
-                $client = $this->getClient();
-
-                // Query untuk mencari profil berdasarkan nama
-                $checkQuery = (new Query('/ip/hotspot/user/profile/print'))
-                    ->where('name', $profile_name);
-
-                // Eksekusi query untuk mencari profil
-                $profiles = $client->query($checkQuery)->read();
-
-                // Jika profil ditemukan
-                if (!empty($profiles)) {
-                    $profile_id = $profiles[0]['.id']; // Ambil ID profil
-
-                    // Query untuk mengedit profil berdasarkan ID
-                    $updateQuery = (new Query('/ip/hotspot/user/profile/set'))
-                        ->equal('.id', $profile_id);
-
-                    // Tambahkan field yang diupdate jika ada
-                    if ($new_profile_name) {
-                        $updateQuery->equal('name', $new_profile_name);
-                    }
-                    if ($shared_users) {
-                        $updateQuery->equal('shared-users', $shared_users);
-                    }
-                    if ($rate_limit) {
-                        $updateQuery->equal('rate-limit', $rate_limit);
-                    }
-
-                    // Eksekusi query untuk mengedit profil
-                    $client->query($updateQuery)->read();
-
-                    // Kembalikan pesan sukses
-                    return response()->json(['message' => 'Hotspot profile updated successfully'], 200);
-                } else {
-                    // Jika profil tidak ditemukan
-                    return response()->json(['message' => 'Profile not found'], 404);
-                }
-            } catch (\Exception $e) {
-                // Tangani error jika ada
-                return response()->json(['error' => $e->getMessage()], 500);
-            }
-        }
 }

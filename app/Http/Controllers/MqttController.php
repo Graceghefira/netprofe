@@ -183,5 +183,61 @@ class MqttController extends Controller
     }
     }
 
+    public function getHotspotProfile()
+{
+    try {
+        // Koneksi ke MikroTik
+        $client = $this->getClient();
+
+        // Query untuk mendapatkan semua profil Hotspot
+        $query = new Query('/ip/hotspot/user/profile/print');
+
+        // Eksekusi query
+        $profiles = $client->query($query)->read();
+
+        // Inisialisasi cache untuk menyimpan data sebelumnya
+        static $previousProfiles = null;
+
+        if (!empty($profiles)) {
+            $result = [];
+
+            // Loop melalui setiap profil dan ambil data penting
+            foreach ($profiles as $profile) {
+                $result[] = [
+                    'profile_name' => $profile['name'],
+                    'shared_users' => $profile['shared-users'] ?? 'Not set',
+                    'rate_limit' => $profile['rate-limit'] ?? 'Not set',
+                ];
+            }
+
+            // Cek apakah data berubah dari sebelumnya
+            if ($previousProfiles !== $result) {
+                // Data berubah, simpan data baru dan publish ke MQTT
+                $previousProfiles = $result;
+
+                // Hubungkan ke MQTT
+                $mqtt = $this->connectToMqtt();
+
+                // Data yang akan dipublish
+                $payload = json_encode(['profiles' => $result]);
+
+                // Publish data ke topik tertentu (misalnya: 'hotspot/profiles')
+                $mqtt->publish('/hotspot_profile', $payload);
+
+                // Disconnect MQTT setelah publish
+                $mqtt->disconnect();
+            }
+
+            // Kembalikan hasil sebagai response JSON tanpa pagination
+            return response()->json(['profiles' => $result], 200);
+        } else {
+            // Jika tidak ada profil ditemukan
+            return response()->json(['message' => 'No profiles found'], 404);
+        }
+    } catch (\Exception $e) {
+        // Tangani error jika ada
+        return response()->json(['error' => $e->getMessage()], 500);
+    }
+    }
 
 }
