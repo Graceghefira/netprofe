@@ -35,6 +35,7 @@ services:
       - redis
 
   php:
+    image: php:8.2-fpm
     build:
       context: .
       target: php

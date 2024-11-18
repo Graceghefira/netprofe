@@ -9,7 +9,7 @@ use PhpMqtt\Client\Facades\MQTT;
 Route::get('/', function () {
     return view('welcome');
 
-
+   });
 Route::prefix('api-netpro')->group(function () {
 
     Route::get('/', function () {
@@ -47,3 +47,6 @@ Route::get('/check-connection', [MikrotikController::class, 'checkConnection']);
 Route::get('/login-hotspot-user', [MikrotikController::class, 'loginHotspotUser1']);
 Route::get('/test-hotspot-login', [MikrotikController::class, 'showTestPage']);
 Route::post('/test-hotspot-login', [MikrotikController::class, 'testHotspotLogin']);
+
+
+?>

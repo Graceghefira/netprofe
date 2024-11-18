@@ -93,3 +93,5 @@ Route::get('/mikrotik/get-kid', [LinkController::class, 'getKidsControlDevices']
 Route::post('/mikrotik/login', [AuthController::class, 'loginWithMikrotikUser']);
 Route::get('/publish-to-mqtt', [MqttController::class, 'getHotspotUsers1']);
 Route::get('/connect-to-mqtt', [MqttController::class, 'connectToMqtt']);
+
+?>
