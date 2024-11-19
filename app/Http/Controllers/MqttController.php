@@ -222,7 +222,7 @@ class MqttController extends Controller
                 $payload = json_encode(['profiles' => $result]);
 
                 // Publish data ke topik tertentu (misalnya: 'hotspot/profiles')
-                $mqtt->publish('/hotspot_profile', $payload);
+                $mqtt->publish('/hotspot_profile' , $payload,0, true);
 
                 // Disconnect MQTT setelah publish
                 $mqtt->disconnect();
