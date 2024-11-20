@@ -48,7 +48,7 @@ services:
     volumes:
       - ./:/var/www
       - ./netprofe:/var/www/html/netpro
-      - ./public:/var/www
+      - ./public:/var/www/public
     ports:
       - "8000:8000"
     depends_on:
@@ -67,9 +67,8 @@ services:
     volumes:
       - .:/var/www
       - ./netpro:/usr/share/nginx/html
-      - ./public:/var/www/public 
-      - ./netprofe:/var/www/html/netpro
       - ./public:/var/www/public
+      - ./netprofe:/var/www/html/netpro
       - ./nginx/conf.d/default.conf:/etc/nginx/conf.d/default.conf
       - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
