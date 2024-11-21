@@ -16,5 +16,12 @@ return Application::configure(basePath: dirname(__DIR__))
         //
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        //
+        $exceptions->render(function (NotFoundHttpException $e, Request $request) {
+            if ($request->is('api/*')) {
+                $currentPath= $request->path();
+                return response()->json([
+                    'message' => $currentPath
+                ], 404);
+            }
+        });
     })->create();

@@ -17,6 +17,9 @@ use App\Http\Controllers\testMqttConnection;
 use App\Http\Controllers\WebBlockController;
 use App\Http\Controllers\WebsocketController;
 
+//Route::prefix('api-netpro')->group(function () {
+
+
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
@@ -93,5 +96,5 @@ Route::get('/mikrotik/get-kid', [LinkController::class, 'getKidsControlDevices']
 Route::post('/mikrotik/login', [AuthController::class, 'loginWithMikrotikUser']);
 Route::get('/publish-to-mqtt', [MqttController::class, 'getHotspotUsers1']);
 Route::get('/connect-to-mqtt', [MqttController::class, 'connectToMqtt']);
-
+//});
 ?>

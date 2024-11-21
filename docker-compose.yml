@@ -68,7 +68,6 @@ services:
       - .:/var/www
       - ./netpro:/usr/share/nginx/html
       - ./public:/var/www/public
-      - ./netprofe:/var/www/html/netpro
       - ./nginx/conf.d/default.conf:/etc/nginx/conf.d/default.conf
       - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
