@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Log;
 use RouterOS\Client;
 use RouterOS\Query;
 use illuminate\Console\Command;
+use Exception;
 
 class WebBlockController extends Controller
 {
@@ -65,118 +66,101 @@ class WebBlockController extends Controller
     // Validasi input
     $request->validate([
         'domain' => 'nullable|string|max:255', // Domain yang akan di-unblock
-        'ip' => 'nullable|ip', // IP yang akan di-unblock
     ]);
 
     $domain = $request->input('domain');
-    $ipInput = $request->input('ip');
 
     try {
         $client = $this->getClient();
 
-        // Jika IP langsung diberikan
-        if ($ipInput) {
-            // Hapus dari address list berdasarkan IP
-            $findQuery = (new Query('/ip/firewall/address-list/print'))
-                ->where('list', 'blocked_sites')
-                ->where('address', $ipInput);
-            $blockedSites = $client->query($findQuery)->read();
+        if (!$domain) {
+            return response()->json(['error' => 'Domain is required to unblock'], 400);
+        }
 
-            // Hapus semua entri yang ditemukan
-            foreach ($blockedSites as $blockedSite) {
+        // 1. Hapus dari address-list berdasarkan domain
+        $blockedSites = $client->query((new Query('/ip/firewall/address-list/print'))
+            ->where('list', 'blocked-domains'))
+            ->read();
+
+        foreach ($blockedSites as $blockedSite) {
+            if (isset($blockedSite['comment']) && strpos($blockedSite['comment'], $domain) !== false) {
                 $id = $blockedSite['.id'];
                 $deleteQuery = (new Query('/ip/firewall/address-list/remove'))
                     ->equal('.id', $id);
                 $client->query($deleteQuery)->read();
             }
+        }
 
-            // Hapus firewall rules yang memblokir berdasarkan IP
-            $firewallIPRule = (new Query('/ip/firewall/filter/print'))
-                ->where('dst-address', $ipInput);
-            $firewallRules = $client->query($firewallIPRule)->read();
+        // 2. Hapus firewall filter rules yang terkait dengan domain
+        $firewallRules = $client->query((new Query('/ip/firewall/filter/print')))
+            ->read();
 
-            foreach ($firewallRules as $rule) {
+        foreach ($firewallRules as $rule) {
+            if (isset($rule['comment']) && strpos($rule['comment'], $domain) !== false) {
                 $id = $rule['.id'];
                 $deleteFirewallRuleQuery = (new Query('/ip/firewall/filter/remove'))
                     ->equal('.id', $id);
                 $client->query($deleteFirewallRuleQuery)->read();
             }
-
-            return response()->json(['message' => 'IP has been unblocked successfully'], 200);
         }
 
-        // Jika domain diberikan, hapus semua entri terkait domain
-        if ($domain) {
-            // Resolusi DNS untuk mendapatkan semua IP terkait domain
-            $dnsRecords = dns_get_record($domain, DNS_A + DNS_AAAA);
+        // 3. Hapus Layer 7 Protocol rules terkait domain
+        $layer7Rules = $client->query((new Query('/ip/firewall/layer7-protocol/print')))
+            ->read();
 
-            if (!$dnsRecords) {
-                return response()->json(['error' => 'Domain resolution failed'], 400);
+        foreach ($layer7Rules as $rule) {
+            if (isset($rule['comment']) && strpos($rule['comment'], $domain) !== false) {
+                $id = $rule['.id'];
+                $deleteLayer7Query = (new Query('/ip/firewall/layer7-protocol/remove'))
+                    ->equal('.id', $id);
+                $client->query($deleteLayer7Query)->read();
             }
-
-            // Looping untuk menghapus semua entri terkait dengan domain
-            foreach ($dnsRecords as $record) {
-                $ipAddress = $record['ip'] ?? $record['ipv6']; // Ambil IPv4 atau IPv6
-
-                // Hapus dari address list berdasarkan IP
-                $findQuery = (new Query('/ip/firewall/address-list/print'))
-                    ->where('list', 'blocked_sites')
-                    ->where('address', $ipAddress);
-                $blockedSites = $client->query($findQuery)->read();
-
-                foreach ($blockedSites as $blockedSite) {
-                    $id = $blockedSite['.id'];
-                    $deleteQuery = (new Query('/ip/firewall/address-list/remove'))
-                        ->equal('.id', $id);
-                    $client->query($deleteQuery)->read();
-                }
-
-                // Hapus firewall rules yang memblokir berdasarkan IP
-                $firewallIPRule = (new Query('/ip/firewall/filter/print'))
-                    ->where('dst-address', $ipAddress);
-                $firewallRules = $client->query($firewallIPRule)->read();
-
-                foreach ($firewallRules as $rule) {
-                    $id = $rule['.id'];
-                    $deleteFirewallRuleQuery = (new Query('/ip/firewall/filter/remove'))
-                        ->equal('.id', $id);
-                    $client->query($deleteFirewallRuleQuery)->read();
-                }
-            }
-
-            // Hapus semua entri yang berkomentar tentang domain dengan pencarian manual
-            $blockedSites = $client->query((new Query('/ip/firewall/address-list/print'))
-                ->where('list', 'blocked_sites'))
-                ->read();
-
-            foreach ($blockedSites as $blockedSite) {
-                // Cek apakah key 'comment' ada sebelum memeriksa domain di dalamnya
-                if (isset($blockedSite['comment']) && strpos($blockedSite['comment'], $domain) !== false) {
-                    $id = $blockedSite['.id'];
-                    $deleteQuery = (new Query('/ip/firewall/address-list/remove'))
-                        ->equal('.id', $id);
-                    $client->query($deleteQuery)->read();
-                }
-            }
-
-            // Hapus semua aturan firewall yang terkait dengan domain dengan pencarian manual
-            $firewallRules = $client->query((new Query('/ip/firewall/filter/print')))
-                ->read();
-
-            foreach ($firewallRules as $rule) {
-                // Cek apakah key 'comment' ada sebelum memeriksa domain di dalamnya
-                if (isset($rule['comment']) && strpos($rule['comment'], $domain) !== false) {
-                    $id = $rule['.id'];
-                    $deleteFirewallRuleQuery = (new Query('/ip/firewall/filter/remove'))
-                        ->equal('.id', $id);
-                    $client->query($deleteFirewallRuleQuery)->read();
-                }
-            }
-
-            return response()->json(['message' => "All entries related to $domain have been unblocked successfully"], 200);
         }
 
-        return response()->json(['error' => 'No valid input provided'], 400);
+        // 4. Hapus Static DNS Entries terkait domain
+        $dnsEntries = $client->query((new Query('/ip/dns/static/print')))
+            ->read();
+
+        foreach ($dnsEntries as $entry) {
+            if (isset($entry['name']) && ($entry['name'] === $domain || strpos($entry['name'], $domain) !== false)) {
+                $id = $entry['.id'];
+                $deleteDnsEntryQuery = (new Query('/ip/dns/static/remove'))
+                    ->equal('.id', $id);
+                $client->query($deleteDnsEntryQuery)->read();
+            }
+        }
+
+        // 5. Hapus NAT redirect rules terkait DNS
+        $natRules = $client->query((new Query('/ip/firewall/nat/print')))
+            ->read();
+
+        foreach ($natRules as $rule) {
+            if (isset($rule['comment']) && strpos($rule['comment'], 'Redirect DNS to Mikrotik') !== false) {
+                $id = $rule['.id'];
+                $deleteNatRuleQuery = (new Query('/ip/firewall/nat/remove'))
+                    ->equal('.id', $id);
+                $client->query($deleteNatRuleQuery)->read();
+            }
+        }
+
+        // 6. Hapus Raw rules terkait domain (HTTPS/SNI block)
+        $rawRules = $client->query((new Query('/ip/firewall/raw/print')))
+            ->read();
+
+        foreach ($rawRules as $rule) {
+            if (isset($rule['comment']) && strpos($rule['comment'], $domain) !== false) {
+                $id = $rule['.id'];
+                $deleteRawRuleQuery = (new Query('/ip/firewall/raw/remove'))
+                    ->equal('.id', $id);
+                $client->query($deleteRawRuleQuery)->read();
+            }
+        }
+
+        // 7. Flush DNS cache di Mikrotik agar aturan yang tersisa segera dihapus
+        $clearDnsCacheQuery = (new Query('/ip/dns/cache/flush'));
+        $client->query($clearDnsCacheQuery)->read();
+
+        return response()->json(['success' => "All entries related to $domain have been unblocked successfully"], 200);
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
@@ -267,171 +251,91 @@ class WebBlockController extends Controller
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
-}
-
+    }
 
     public function blockWebsite(Request $request)
     {
+        // Validasi input domain
         $request->validate([
-            'domain' => 'required|string',
+            'domain' => 'required|string',  // Input domain oleh user
         ]);
 
+        // Ambil domain dari input pengguna
         $domain = $request->input('domain');
-        $client = $this->getClient();
 
         try {
-            // Menambahkan domain ke dalam address-list Mikrotik
-            $addAddressListQuery = (new Query('/ip/firewall/address-list/add'))
-                ->equal('list', $domain)
-                ->equal('address', $domain)
-                ->equal('comment', 'Blocked by Laravel API');
+            // Membuat koneksi ke MikroTik dengan menggunakan getClient()
+            $client = $this->getClient();
 
-            $this->client->query($addAddressListQuery)->read();
+            // 1. Tambahkan domain ke address-list MikroTik
+            $addAddressListQuery = new Query('/ip/firewall/address-list/add');
+            $addAddressListQuery->equal('list', 'blocked-domains')
+                                ->equal('address', $domain)
+                                ->equal('comment', 'Blocked by Laravel API for ' . $domain);
+            $client->query($addAddressListQuery)->read();
 
-            // Menambahkan firewall filter rule untuk memblokir akses ke domain
-            $addFilterRuleQuery = (new Query('/ip/firewall/filter/add'))
-                ->equal('chain', 'forward')
-                ->equal('protocol', 'tcp')
-                ->equal('dst-port', '80,443')
-                ->equal('content', $domain)
-                ->equal('action', 'drop')
-                ->equal('comment', 'Drop traffic to blocked domain'.$domain);
+            // 2. Tambahkan firewall filter untuk memblokir domain
+            $addFilterRuleQuery = new Query('/ip/firewall/filter/add');
+            $addFilterRuleQuery->equal('chain', 'forward')
+                               ->equal('src-address-list', 'blocked-domains')
+                               ->equal('action', 'drop')
+                               ->equal('comment', 'Drop traffic to blocked domain ' . $domain);
+            $client->query($addFilterRuleQuery)->read();
 
-            $this->client->query($addFilterRuleQuery)->read();
+            // 3. Tambahkan Layer 7 Protocol untuk memblokir domain dan subdomain dengan regex baru
+            $escapedDomain = preg_quote($domain, '/');
+            $layer7Regex = '^.+(instagram.com|cdninstagram.com|.cdninstagram.com|.instagram.com|instagram.|.instagram|.cdninstagram|cdninstagram.).*$';
 
-              // Menambahkan data ke Layer 7 protocol dengan regex format
-            $layer7Regex = '^(Host:\\s*(www.)?' . preg_quote($domain) . ')';
-            $addLayer7ProtocolQuery = (new Query('/ip/firewall/layer7-protocol/add'))
-            ->equal('name', 'block-' . $domain)
-            ->equal('regexp', $layer7Regex)
-            ->equal('comment', 'Layer 7 rule for blocking ' . $domain);
+            $addLayer7ProtocolQuery = new Query('/ip/firewall/layer7-protocol/add');
+            $addLayer7ProtocolQuery->equal('name', 'block-' . $domain)
+                                   ->equal('regexp', $layer7Regex)
+                                   ->equal('comment', 'Layer 7 rule for blocking ' . $domain . ' and its subdomains');
+            $client->query($addLayer7ProtocolQuery)->read();
 
-            $this->client->query($addLayer7ProtocolQuery)->read();
+            // 4. Tambahkan static DNS entry untuk domain yang diblokir
+            $addStaticDnsEntryQuery = new Query('/ip/dns/static/add');
+            $addStaticDnsEntryQuery->equal('name', $domain)
+                                   ->equal('address', '127.0.0.1')  // IP invalid untuk blokir
+                                   ->equal('comment', 'DNS block for ' . $domain);
+            $client->query($addStaticDnsEntryQuery)->read();
 
-//             return response()->json(['success' => 'Domain berhasil diblokir dan firewall rule ditambahkan!'], 200);m,n']
-        } catch (\Exception $e) {
+            // 5. Tambahkan wildcard untuk subdomain
+            $addStaticDnsEntryWildcardQuery = new Query('/ip/dns/static/add');
+            $addStaticDnsEntryWildcardQuery->equal('name', '*.' . $domain)
+                                           ->equal('address', '127.0.0.1')
+                                           ->equal('comment', 'DNS block for subdomains of ' . $domain);
+            $client->query($addStaticDnsEntryWildcardQuery)->read();
+
+            // 6. Redirect semua query DNS ke MikroTik
+            $addNatDnsRedirectQuery = new Query('/ip/firewall/nat/add');
+            $addNatDnsRedirectQuery->equal('chain', 'dstnat')
+                                   ->equal('protocol', 'udp')
+                                   ->equal('dst-port', '53')
+                                   ->equal('action', 'redirect')
+                                   ->equal('to-ports', '53')
+                                   ->equal('comment', 'Redirect DNS queries to MikroTik');
+            $client->query($addNatDnsRedirectQuery)->read();
+
+            // 7. Block HTTPS menggunakan TLS SNI
+            $addRawHttpsBlockQuery = new Query('/ip/firewall/raw/add');
+            $addRawHttpsBlockQuery->equal('action', 'drop')
+                                  ->equal('chain', 'prerouting')
+                                  ->equal('tls-host', $domain)
+                                  ->equal('comment', 'Block HTTPS traffic to ' . $domain . ' via SNI');
+            $client->query($addRawHttpsBlockQuery)->read();
+
+            // 8. Clear DNS Cache untuk menerapkan perubahan
+            $clearDnsCacheQuery = new Query('/ip/dns/cache/flush');
+            $client->query($clearDnsCacheQuery)->read();
+
+            // Kembalikan respons sukses
+            return response()->json(['success' => 'Domain ' . $domain . ' dan semua subdomainnya berhasil diblokir!'], 200);
+
+        } catch (Exception $e) {
             return response()->json(['error' => 'Gagal memblokir domain atau menambahkan firewall rule: ' . $e->getMessage()], 500);
         }
     }
 
-
-    public function blockWebsite1(Request $request)
-{
-    $request->validate([
-        'domain' => 'required|string', // Input domain oleh user, contoh: facebook.com
-    ]);
-
-    // Ambil domain dari input pengguna
-    $domain = $request->input('domain');
-    $client = $this->getClient();
-
-    try {
-        // 1. Menambahkan domain utama ke address-list Mikrotik
-        $addAddressListQuery = (new Query('/ip/firewall/address-list/add'))
-            ->equal('list', 'blocked-domains')
-            ->equal('address', $domain)
-            ->equal('comment', 'Blocked by Laravel API for ' . $domain);
-
-        $this->client->query($addAddressListQuery)->read();
-
-        // 2. Menambahkan firewall filter rule untuk memblokir akses ke domain dan subdomain
-        $addFilterRuleQuery = (new Query('/ip/firewall/filter/add'))
-            ->equal('chain', 'forward')
-            ->equal('protocol', 'tcp')
-            ->equal('dst-port', '80,443')
-            ->equal('content', $domain)
-            ->equal('action', 'drop')
-            ->equal('comment', 'Drop traffic to blocked domain ' . $domain);
-
-        $this->client->query($addFilterRuleQuery)->read();
-
-        // 3. Menambahkan Layer 7 Protocol Rule dengan wildcard untuk memblokir subdomain secara otomatis
-        $layer7Regex = '^(Host:\\s*([a-zA-Z0-9_-]+\\.)*' . preg_quote($domain) . ')';
-        $addLayer7ProtocolQuery = (new Query('/ip/firewall/layer7-protocol/add'))
-            ->equal('name', 'block-' . $domain)
-            ->equal('regexp', $layer7Regex)
-            ->equal('comment', 'Layer 7 rule for blocking ' . $domain . ' and its subdomains');
-
-        $this->client->query($addLayer7ProtocolQuery)->read();
-
-        // 4. Menambahkan Static DNS Entry untuk memblokir resolusi DNS domain yang diblokir
-        $addStaticDnsEntryQuery = (new Query('/ip/dns/static/add'))
-            ->equal('name', $domain)
-            ->equal('address', '127.0.0.1') // Alamat IP tidak valid untuk memblokir resolusi DNS
-            ->equal('comment', 'DNS block for ' . $domain);
-
-        $this->client->query($addStaticDnsEntryQuery)->read();
-
-        // 5. Membersihkan cache DNS di Mikrotik agar aturan segera berlaku
-        $clearDnsCacheQuery = (new Query('/ip/dns/cache/flush'));
-        $this->client->query($clearDnsCacheQuery)->read();
-
-        return response()->json(['success' => 'Domain ' . $domain . ' dan semua subdomainnya berhasil diblokir!'], 200);
-    } catch (\Exception $e) {
-        return response()->json(['error' => 'Gagal memblokir domain atau menambahkan firewall rule: ' . $e->getMessage()], 500);
-    }
-}
-
-
-
-    protected $signature = 'mikrotik:update-blocked-ips';
-    protected $description = 'Update blocked IPs for domains in MikroTik';
-
-    public function updateBlockedIPs()
-{
-    try {
-        $client = $this->getClient();
-
-        // Mendapatkan daftar domain yang diblokir dari MikroTik
-        $getQuery = (new Query('/ip/firewall/address-list/print'))
-            ->where('list', 'blocked_sites'); // Mengambil daftar dari blocked_sites
-
-        $blockedSites = $client->query($getQuery)->read();
-
-        // Ambil semua domain dari daftar blokir
-        $domains = [];
-        $now = new \DateTime(); // Waktu saat ini untuk membandingkan creation-time
-        foreach ($blockedSites as $site) {
-            if (isset($site['comment']) && strpos($site['comment'], 'Blocked: ') !== false) {
-                $domain = str_replace('Blocked: ', '', $site['comment']);
-                $domains[$domain][] = $site['address']; // Menyimpan IP terkait domain
-
-            }
-        }
-
-        // Memperbarui daftar IP untuk setiap domain
-        foreach ($domains as $domain => $existingIPs) {
-            // Mengambil IP terbaru untuk domain melalui DNS
-            $dnsRecords = dns_get_record($domain, DNS_A + DNS_AAAA);
-
-            foreach ($dnsRecords as $record) {
-                $newIpAddress = $record['ip'] ?? $record['ipv6'] ?? null;
-
-                // Jika IP tidak kosong dan belum ada di daftar
-                if ($newIpAddress && !in_array($newIpAddress, $existingIPs)) {
-                    // Tambahkan IP baru ke address list 'blocked_sites'
-                    $addQuery = (new Query('/ip/firewall/address-list/add'))
-                        ->equal('list', 'blocked_sites')
-                        ->equal('address', $newIpAddress)
-                        ->equal('comment', "Blocked: $domain");
-                    $client->query($addQuery)->read();
-
-                    // Log informasi tentang IP baru yang ditambahkan
-                    Log::info("Added new IP $newIpAddress for domain $domain to blocked_sites.");
-                }
-            }
-        }
-
-        // Menambahkan pesan ke log Laravel
-        Log::info('Blocked IPs updated successfully via WebBlockController.');
-        return response()->json(['message' => 'Blocked IPs updated successfully.'], 200);
-
-    } catch (\Exception $e) {
-        // Log error jika terjadi masalah
-        Log::error('Error updating blocked IPs in WebBlockController: ' . $e->getMessage());
-        return response()->json(['error' => 'Failed to update blocked IPs.'], 500);
-    }
-    }
 
 
 }

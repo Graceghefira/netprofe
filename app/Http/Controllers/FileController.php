@@ -23,7 +23,7 @@ class FileController extends Controller
             'host' => 'id-4.hostddns.us',  // Ganti dengan domain DDNS kamu
             'user' => 'admin',             // Username Mikrotik
             'pass' => 'admin2',            // Password Mikrotik
-            'port' => 21326,                  // Port FTP Mikrotik (default 21)
+            'port' => 21326,               // Port FTP Mikrotik (default 21)
         ];
 
         // Buat koneksi FTP

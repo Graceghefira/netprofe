@@ -298,14 +298,13 @@ class HotspotProfileController extends Controller
 {
     // Validasi input
     $request->validate([
-        'profile_name' => 'required|string', // Nama profil yang ingin diedit
-        'new_profile_name' => 'nullable|string', // Nama profil baru, opsional
+        'link' => 'required|url', // Link baru yang akan diupdate
         'shared_users' => 'nullable|integer', // Jumlah shared users, opsional
         'rate_limit' => 'nullable|string', // Rate limit, opsional
     ]);
 
-    $profile_name = $request->input('profile_name');
-    $new_profile_name = $request->input('new_profile_name');
+    // Ambil input dari request
+    $link = $request->input('link');
     $shared_users = $request->input('shared_users');
     $rate_limit = $request->input('rate_limit');
 
@@ -329,9 +328,6 @@ class HotspotProfileController extends Controller
                 ->equal('.id', $profile_id);
 
             // Tambahkan field yang diupdate jika ada
-            if ($new_profile_name) {
-                $updateQuery->equal('name', $new_profile_name);
-            }
             if ($shared_users) {
                 $updateQuery->equal('shared-users', $shared_users);
             }
@@ -342,14 +338,33 @@ class HotspotProfileController extends Controller
             // Eksekusi query untuk mengedit profil
             $client->query($updateQuery)->read();
 
-            // Panggil fungsi getHotspotUsers1 dari MqttController
+            // Periksa apakah profil ada di database user_profile_link
+            $existingProfile = DB::table('user_profile_link')
+                ->where('name', $profile_name)
+                ->first();
+
+            if ($existingProfile) {
+                // Update link jika profil ditemukan
+                DB::table('user_profile_link')
+                    ->where('name', $profile_name)
+                    ->update(['link' => $link]);
+            } else {
+                // Insert data baru jika profil tidak ditemukan
+                DB::table('user_profile_link')
+                    ->insert([
+                        'name' => $profile_name,
+                        'link' => $link,
+                    ]);
+            }
+
+            // Panggil fungsi getHotspotProfile dari MqttController
             $hotspotController = app()->make(\App\Http\Controllers\MqttController::class);
             $hotspotController->getHotspotProfile();
 
             // Kembalikan pesan sukses
-            return response()->json(['message' => 'Hotspot profile updated successfully'], 200);
+            return response()->json(['message' => 'Hotspot profile and link updated successfully'], 200);
         } else {
-            // Jika profil tidak ditemukan
+            // Jika profil tidak ditemukan di MikroTik
             return response()->json(['message' => 'Profile not found'], 404);
         }
     } catch (\Exception $e) {
@@ -357,5 +372,7 @@ class HotspotProfileController extends Controller
         return response()->json(['error' => $e->getMessage()], 500);
     }
     }
+
+
 
 }

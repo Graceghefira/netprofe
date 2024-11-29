@@ -189,7 +189,7 @@ class MqttController extends Controller
         // Koneksi ke MikroTik
         $client = $this->getClient();
 
-        // Query untuk mendapatkan semua profil Hotspot
+        // Query untuk mendapatkan semua profil Hotspot dari MikroTik
         $query = new Query('/ip/hotspot/user/profile/print');
 
         // Eksekusi query
@@ -201,19 +201,27 @@ class MqttController extends Controller
         if (!empty($profiles)) {
             $result = [];
 
-            // Loop melalui setiap profil dan ambil data penting
+            // Ambil semua data dari tabel user_profile_link
+            $links = DB::table('user_profile_link')->get()->pluck('link', 'name')->toArray();
+
+            // Loop melalui setiap profil di MikroTik
             foreach ($profiles as $profile) {
+                $profileName = $profile['name'];
+
+                // Ambil link dari database jika ada, jika tidak gunakan default
+                $link = $links[$profileName] ?? 'No link available';
+
                 $result[] = [
-                    'profile_name' => $profile['name'],
+                    'profile_name' => $profileName,
                     'shared_users' => $profile['shared-users'] ?? 'Not set',
                     'rate_limit' => $profile['rate-limit'] ?? 'Not set',
+                    'link' => $link, // Tambahkan link dari database
                 ];
             }
 
             // Cek apakah data berubah dari sebelumnya
             if ($previousProfiles !== $result) {
-                // Data berubah, simpan data baru dan publish ke MQTT
-                $previousProfiles = $result;
+                // Data berubah atau tidak sesuai dengan yang ada di MikroTik
 
                 // Hubungkan ke MQTT
                 $mqtt = $this->connectToMqtt();
@@ -221,15 +229,31 @@ class MqttController extends Controller
                 // Data yang akan dipublish
                 $payload = json_encode(['profiles' => $result]);
 
-                // Publish data ke topik tertentu (misalnya: 'hotspot/profiles')
-                $mqtt->publish('/hotspot_profile' , $payload,0, true);
+                // Publish data ke topik tertentu (misalnya: '/hotspot_profile')
+                $mqtt->publish('/hotspot_profile', $payload, 0, true);
 
                 // Disconnect MQTT setelah publish
                 $mqtt->disconnect();
-            }
 
-            // Kembalikan hasil sebagai response JSON tanpa pagination
-            return response()->json(['profiles' => $result], 200);
+                // Update cache
+                $previousProfiles = $result;
+
+                return response()->json(['message' => 'Data updated and published to MQTT', 'profiles' => $result], 200);
+            } else {
+                // Jika data sama, cek konsistensi dengan MQTT
+                $mqtt = $this->connectToMqtt();
+                $currentPayload = $this->getMqttPayload('/hotspot_profile'); // Ambil data dari topik MQTT
+
+                if ($currentPayload !== json_encode(['profiles' => $result])) {
+                    // Jika data di MQTT tidak sesuai, ganti dengan data dari MikroTik
+                    $mqtt->publish('/hotspot_profile', json_encode(['profiles' => $result]), 0, true);
+                }
+
+                // Disconnect MQTT setelah validasi
+                $mqtt->disconnect();
+
+                return response()->json(['message' => 'Data in MQTT validated. No changes needed.'], 200);
+            }
         } else {
             // Jika tidak ada profil ditemukan
             return response()->json(['message' => 'No profiles found'], 404);
@@ -239,5 +263,22 @@ class MqttController extends Controller
         return response()->json(['error' => $e->getMessage()], 500);
     }
     }
+
+    private function getMqttPayload($topic)
+{
+    $mqtt = $this->connectToMqtt();
+    $payload = null;
+
+    $mqtt->subscribe($topic, function ($topic, $message) use (&$payload) {
+        $payload = $message;
+    }, 0);
+
+    $mqtt->loop(true); // Loop untuk menerima pesan
+    $mqtt->disconnect();
+
+    return $payload;
+    }
+
+
 
 }

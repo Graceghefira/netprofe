@@ -11,20 +11,7 @@ Artisan::command('inspire', function () {
 
 Schedule::call(function () {
     $controller = new \App\Http\Controllers\ByteController();
-    $controller->deleteExpiredHotspotUsers();
-})->everyMinute();
-
-Schedule::call(function () {
-    $controller = new \App\Http\Controllers\ByteController();
     $controller->updateUserBytesFromMikrotik();
 })->daily();
 
-Schedule::call(function () {
-    $controller = new \App\Http\Controllers\MikrotikController();
-    $controller->updateAllHotspotUsersByPhoneNumber();
-})->everyFiveSeconds();
 
-Schedule::call(function () {
-    $controller = new \App\Http\Controllers\MqttController();
-    $controller->getHotspotUsers1();
-})->everyFiveSeconds();
