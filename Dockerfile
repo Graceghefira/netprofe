@@ -22,6 +22,9 @@ RUN apt-get update && apt-get install -y \
 
 COPY --from=composer:2.3.5 /usr/bin/composer /usr/bin/composer
 
+COPY ./nginx.conf /etc/nginx/conf.d/default.conf
+COPY ./netpro /usr/share/nginx/html
+
 WORKDIR /var/www
 COPY . /var/www
 COPY . .
@@ -40,7 +43,8 @@ RUN php artisan route:cache
 
 # Tentukan port yang diekspos oleh PHP-FPM
 EXPOSE 9000
-
+EXPOSE 80
+EXPOSE 443
 # Set pengguna kembali ke www-data untuk keamanan
 USER www-data
 

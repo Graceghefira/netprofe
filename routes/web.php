@@ -10,12 +10,12 @@ Route::get('/', function () {
     return view('welcome');
 
    });
-Route::prefix('api-netpro')->group(function () {
+//Route::prefix('api-netpro')->group(function () {
 
     Route::get('/', function () {
         return response()->json(['message' => 'API Netprofe is working!']);
 //return response()->json(['message' => $_SERVER);
-    });
+  //  });
 
     Route::get('/index', function () {
        return view('index');
