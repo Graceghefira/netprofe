@@ -42,6 +42,7 @@ class MenuController extends Controller
             'expiry_time' => 'required|integer|min:1', // Assuming expiry_time is in minutes
         ]);
 
+        
         try {
             // Membuat menu baru
             $menu = new Menu();
