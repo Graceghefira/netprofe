@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\UpdateHotspotUsersByPhoneNumber;
 use App\Models\AkunKantor;
 use App\Models\Menu;
 use App\Models\Order;
@@ -14,7 +13,6 @@ use ArelAyudhi\DhivaProdevWa;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 class MikrotikController extends Controller
 {

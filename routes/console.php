@@ -9,6 +9,11 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote')->hourly();
 
 
+// Schedule::call(function () {
+//     $controller = new \App\Http\Controllers\ByteController();
+//     $controller->deleteExpiredHotspotUsers();
+// })->everyMinute();
+
 Schedule::call(function () {
     $controller = new \App\Http\Controllers\ByteController();
     $controller->updateUserBytesFromMikrotik();

@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ByteController;
 use App\Http\Controllers\DHCPController;
+use App\Http\Controllers\FailOverController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\HotspotProfileController;
 use App\Http\Controllers\LinkController;
@@ -44,11 +45,9 @@ Route::post('/mikrotik/hotspot-profile/{profile_name}', [HotspotProfileControlle
 Route::post('/mikrotik/set-profile', [HotspotProfileController::class, 'setHotspotProfile']);
 Route::delete('/mikrotik/delete-profile/{profile_name}', [HotspotProfileController::class, 'deleteHotspotProfile']);
 
-Route::post('/mikrotik/web-block', [WebBlockController::class, 'blockWebsite1']);
-Route::post('/mikrotik/web-block-alternate', [WebBlockController::class, 'blockWebsite1']);
+Route::post('/mikrotik/web-block', [WebBlockController::class, 'blockDomain']);
 Route::get('/mikrotik/get-web-block', [WebBlockController::class, 'getBlockedWebsites']);
-Route::delete('/mikrotik/web-unblock', [WebBlockController::class, 'unblockWebsite']);
-Route::delete('/mikrotik/web-unblock/{domain?}', [WebBlockController::class, 'unblockWebsite1']);
+Route::post('/mikrotik/web-unblock', [WebBlockController::class, 'unblockDomain']);
 
 Route::post('/mikrotik/upload-file', [FileController::class, 'uploadFileToMikrotik']);
 Route::get('/mikrotik/list-file', [FileController::class, 'listFilesOnMikrotik']);
@@ -90,5 +89,6 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::get('/publish-to-mqtt', [MqttController::class, 'getHotspotUsers1']);
 Route::get('/connect-to-mqtt', [MqttController::class, 'connectToMqtt']);
 
-
-
+Route::get('/mikrotik/route-info', [FailOverController::class, 'getRoute']);
+Route::post('/mikrotik/set-failover', [FailOverController::class, 'addFailoverData']);
+Route::delete('/mikrotik/delet-failover', [FailOverController::class, 'deleteFailoverData']);

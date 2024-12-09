@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 use RouterOS\Client;
 use RouterOS\Query;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
+
 
 
 class DHCPController extends Controller
