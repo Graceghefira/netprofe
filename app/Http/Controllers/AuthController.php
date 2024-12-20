@@ -7,12 +7,14 @@ use Illuminate\Http\Request;
 use App\Models\AkunKantor;
 use App\Models\Menu;
 use App\Models\Order;
+use App\Models\User;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Providers\RadiusService;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 class AuthController extends Controller
@@ -24,61 +26,60 @@ class AuthController extends Controller
         $this->radiusService = $radiusService;
     }
 
-    protected function getClient()
+    public function register(Request $request)
     {
-        $config = [
-            'host' => 'id-4.hostddns.us',  // Ganti dengan domain DDNS kamu
-            'user' => 'admin',             // Username Mikrotik
-            'pass' => 'admin2',            // Password Mikrotik
-            'port' => 21326,                // Port API Mikrotik (default 8728)
-        ];
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
 
-        return new Client($config);
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+        ]);
+
+        $token = $user->createToken('API Token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'User registered successfully',
+            'user' => $user,
+            'token' => $token,
+        ], 201);
     }
-    
-    public function loginWithMikrotikUser(Request $request)
+
+    // Fungsi Login
+    public function login(Request $request)
     {
-        try {
-            $client = $this->getClient();
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required',
+        ]);
 
-            // Ambil input username dan password dari request
-            $username = $request->input('username');
-            $password = $request->input('password');
+        $user = User::where('email', $request->email)->first();
 
-            // Query untuk memeriksa pengguna di MikroTik berdasarkan username
-            $getUserQuery = (new Query('/ip/hotspot/user/print'))->where('name', $username);
-            $users = $client->query($getUserQuery)->read();
-
-            // Jika pengguna tidak ditemukan di MikroTik
-            if (empty($users)) {
-                return response()->json(['message' => 'User not found'], 404);
-            }
-
-            // Ambil user yang ditemukan
-            $user = $users[0]; // Asumsi hanya ada satu user yang cocok dengan name
-
-            // Periksa password
-            if (isset($user['password']) && $user['password'] === $password) {
-                // Login berhasil, buat token atau sesi
-                $token = base64_encode(Str::random(40)); // Menggunakan Str::random untuk token
-
-                // Simpan sesi atau token
-                session(['user' => $username, 'token' => $token]);
-
-                return response()->json([
-                    'message' => 'Login successful',
-                    'username' => $username,
-                    'token' => $token,
-                ]);
-            }
-
-            // Jika password tidak cocok
-            return response()->json(['message' => 'Invalid password'], 401);
-
-        } catch (\Exception $e) {
-            return response()->json(['message' => $e->getMessage()], 500);
+        if (!$user || !Hash::check($request->password, $user->password)) {
+            return response()->json(['message' => 'Invalid credentials'], 401);
         }
+
+        $token = $user->createToken('API Token')->plainTextToken;
+
+        return response()->json([
+            'message' => 'Login successful',
+            'user' => $user,
+            'token' => $token,
+        ], 200);
     }
 
+    // Fungsi Logout
+    public function logout(Request $request)
+    {
+        $request->user()->currentAccessToken()->delete();
 
+        return response()->json(['message' => 'Logged out successfully'], 200);
+    }
 }
+
+
+

@@ -2,38 +2,36 @@
 
 use App\Http\Controllers\AddUserController;
 use App\Http\Controllers\MikrotikController;
+use App\Http\Controllers\MikroTikWebhookController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ByteController;
 use App\Http\Controllers\DHCPController;
+use App\Http\Controllers\FailOverController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\HotspotProfileController;
 use App\Http\Controllers\LinkController;
 use App\Http\Controllers\MenuController;
 use App\Http\Controllers\MqttController;
 use App\Http\Controllers\TerminalController;
-use App\Http\Controllers\testMqttConnection;
 use App\Http\Controllers\WebBlockController;
-use App\Http\Controllers\WebsocketController;
-
-//Route::prefix('api-netpro')->group(function () {
 
 
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-
 Route::post('/mikrotik/add-Hotspot-User', [MikrotikController::class, 'addHotspotUser']);
 Route::post('/mikrotik/add-hotspot-login', [MikrotikController::class, 'addHotspotUser1']);
 Route::post('/mikrotik/add-hotspot-login-by-time', [MikrotikController::class, 'addHotspotUserByExpiryTime']);
-Route::get('/mikrotik/get-Hotspot-users', [MikrotikController::class, 'getHotspotUsers1']);
 Route::post('/mikrotik/get-Hotspot-test', [MikrotikController::class, 'updateAllHotspotUsersByPhoneNumber']);
 Route::get('/mikrotik/get-Hotspot-users-byte', [MikrotikController::class, 'getHotspotUsersByte']);
 Route::get('/mikrotik/get-Hotspot-users/{profile_name}', [MikrotikController::class, 'getHotspotUsersByProfileName']);
 Route::get('/mikrotik/get-Hotspot-by-phone/{no_hp}', [MikrotikController::class, 'getHotspotUserByPhoneNumber']);
 Route::post('/mikrotik/hotspot-user/{no_hp}', [MikrotikController::class, 'editHotspotUser']);
+Route::post('/mikrotik/update-user', [MikrotikController::class, 'updateAllHotspotUsersByPhoneNumber']);
+
 
 Route::post('/mikrotik/add', [MenuController::class, 'addMenu']);
 Route::put('/mikrotik/edit/{id}', [MenuController::class, 'editMenu']);
@@ -43,15 +41,13 @@ Route::get('/mikrotik/get-all-order', [MenuController::class, 'getAllOrders']);
 Route::get('/mikrotik/get-profile', [HotspotProfileController::class, 'getHotspotProfile']);
 Route::get('/mikrotik/get-profile-Pagi', [HotspotProfileController::class, 'getHotspotProfilePagi']);
 Route::get('/mikrotik/get-profile/{profile_name}', [HotspotProfileController::class, 'getHotspotProfileByName']);
-Route::post('/mikrotik/hotspot-profile/{profile_name}', [HotspotProfileController::class, 'editHotspotProfile']);
+Route::post('/mikrotik/hotspot-profile/{profile_name}', [HotspotProfileController::class, 'updateHotspotProfile']);
 Route::post('/mikrotik/set-profile', [HotspotProfileController::class, 'setHotspotProfile']);
 Route::delete('/mikrotik/delete-profile/{profile_name}', [HotspotProfileController::class, 'deleteHotspotProfile']);
 
-Route::post('/mikrotik/web-block', [WebBlockController::class, 'blockWebsite']);
-Route::post('/mikrotik/web-block-alternate', [WebBlockController::class, 'blockWebsite1']);
+Route::post('/mikrotik/web-block', [WebBlockController::class, 'blockDomain']);
 Route::get('/mikrotik/get-web-block', [WebBlockController::class, 'getBlockedWebsites']);
-Route::delete('/mikrotik/web-unblock', [WebBlockController::class, 'unblockWebsite']);
-Route::delete('/mikrotik/web-unblock/{domain?}', [WebBlockController::class, 'unblockWebsite1']);
+Route::post('/mikrotik/web-unblock', [WebBlockController::class, 'unblockDomain']);
 
 Route::post('/mikrotik/upload-file', [FileController::class, 'uploadFileToMikrotik']);
 Route::get('/mikrotik/list-file', [FileController::class, 'listFilesOnMikrotik']);
@@ -83,18 +79,16 @@ Route::delete('/mikrotik/delete-dhcp/{name}', [DHCPController::class, 'deleteDhc
 Route::delete('/mikrotik/delete-network/{gateway}', [DHCPController::class, 'deleteDhcpNetworkByGateway']);
 Route::delete('/mikrotik/delete-lease/{address}', [DHCPController::class, 'deleteDhcpLeaseAndIpBindingByAddress']);
 
-Route::get('/mikrotik-logs', [WebsocketController::class, 'getAndBroadcastMikrotikLogs']);
-Route::get('/mikrotik/get-logs', [WebsocketController::class, 'getLogs']);
-Route::post('/sensend-messaged-message', [WebsocketController::class, 'sendMessage']);
-Route::get('/Lease', [WebsocketController::class, 'getLeasesRealtime']);
-Route::post('/Log', [WebsocketController::class, 'getLogs']);
-
-Route::get('/mqtt-Connection', [testMqttConnection::class, 'testMqttConnection']);
 
 Route::get('/mikrotik/get-kid', [LinkController::class, 'getKidsControlDevices']);
 
-Route::post('/mikrotik/login', [AuthController::class, 'loginWithMikrotikUser']);
+
+Route::post('/regis', [AuthController::class, 'register']);
+Route::post('/login', [AuthController::class, 'login']);
+
 Route::get('/publish-to-mqtt', [MqttController::class, 'getHotspotUsers1']);
 Route::get('/connect-to-mqtt', [MqttController::class, 'connectToMqtt']);
-//});
-?>
+
+Route::get('/mikrotik/route-info', [FailOverController::class, 'getRoute']);
+Route::post('/mikrotik/set-failover', [FailOverController::class, 'addFailoverData']);
+Route::delete('/mikrotik/delet-failover', [FailOverController::class, 'deleteFailoverData']);

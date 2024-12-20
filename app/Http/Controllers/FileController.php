@@ -2,17 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AkunKantor;
-use App\Models\Menu;
-use App\Models\Order;
-use Carbon\Carbon;
-use RouterOS\Client;
-use RouterOS\Query;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
-use ArelAyudhi\DhivaProdevWa;
-use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class FileController extends Controller
@@ -23,7 +13,7 @@ class FileController extends Controller
             'host' => 'id-4.hostddns.us',  // Ganti dengan domain DDNS kamu
             'user' => 'admin',             // Username Mikrotik
             'pass' => 'admin2',            // Password Mikrotik
-            'port' => 21326,                  // Port FTP Mikrotik (default 21)
+            'port' => 21326,               // Port FTP Mikrotik (default 21)
         ];
 
         // Buat koneksi FTP
