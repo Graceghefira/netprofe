@@ -16,13 +16,16 @@ RUN apt-get update && apt-get install -y \
     zip \
     unzip \
     libssl-dev \
+    libgd-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install gd \
     && docker-php-ext-install pdo_mysql bcmath sockets \
     && rm -rf /var/lib/apt/lists/*
 
 
 COPY --from=composer:2.3.5 /usr/bin/composer /usr/bin/composer
 
-COPY ./nginx.conf /etc/nginx/conf.d/default.conf
+COPY ./nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf
 COPY ./netpro /usr/share/nginx/html
 
 WORKDIR /var/www
