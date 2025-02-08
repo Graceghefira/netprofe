@@ -1,12 +1,17 @@
 <?php
 
 use App\Http\Controllers\AddUserController;
+use App\Http\Controllers\AnnualController;
+use App\Http\Controllers\ArtisanController;
 use App\Http\Controllers\MikrotikController;
 use App\Http\Controllers\MikroTikWebhookController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BaseMikrotikController;
 use App\Http\Controllers\ByteController;
+use App\Http\Controllers\DatabaseController;
+use App\Http\Controllers\DeviceMikrotikController;
 use App\Http\Controllers\DHCPController;
 use App\Http\Controllers\FailOverController;
 use App\Http\Controllers\FileController;
@@ -14,6 +19,8 @@ use App\Http\Controllers\HotspotProfileController;
 use App\Http\Controllers\LinkController;
 use App\Http\Controllers\MenuController;
 use App\Http\Controllers\MqttController;
+use App\Http\Controllers\OVPNController;
+use App\Http\Controllers\ResponController;
 use App\Http\Controllers\TerminalController;
 use App\Http\Controllers\WebBlockController;
 
@@ -83,12 +90,42 @@ Route::delete('/mikrotik/delete-lease/{address}', [DHCPController::class, 'delet
 Route::get('/mikrotik/get-kid', [LinkController::class, 'getKidsControlDevices']);
 
 
-Route::post('/regis', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/mikrotik/switch-endpoint', [AuthController::class, 'switchEndpoint']);
+
 
 Route::get('/publish-to-mqtt', [MqttController::class, 'getHotspotUsers1']);
 Route::get('/connect-to-mqtt', [MqttController::class, 'connectToMqtt']);
 
 Route::get('/mikrotik/route-info', [FailOverController::class, 'getRoute']);
+Route::get('/mikrotik/netwach-info', [MqttController::class, 'getNetwatch']);
 Route::post('/mikrotik/set-failover', [FailOverController::class, 'addFailoverData']);
 Route::delete('/mikrotik/delet-failover', [FailOverController::class, 'deleteFailoverData']);
+
+Route::post('/mikrotik/add-hotspot-profile', [AnnualController::class, 'setHotspotProfile']);
+Route::post('/mikrotik/add-hotspot-login-Annual', [AnnualController::class, 'addHotspotUser1']);
+Route::Delete('/mikrotik/delete', [AnnualController::class, 'deleteExpiredHotspotUsers']);
+Route::post('/mikrotik/update-data', [AnnualController::class, 'UpdateData']);
+Route::post('/mikrotik/update-status', [AnnualController::class, 'updateAllHotspotUsersByPhoneNumber']);
+Route::get('/mikrotik/list-voucher', [AnnualController::class, 'getVoucherLists']);
+Route::get('/mikrotik/list-akun', [AnnualController::class, 'getHotspotUsers']);
+
+Route::get('/mikrotik/get-interface', [DeviceMikrotikController::class, 'getInterfaces']);
+
+Route::get('/check', [BaseMikrotikController::class, 'checkCurrentEndpoint']);
+
+Route::get('/check-update', [ByteController::class, 'updateUserBytesFromMikrotik1']);
+Route::post('/check-interfaces', [AuthController::class, 'getHotspotUsersByUniqueRole']);
+
+Route::post('/complaints', [ResponController::class, 'addTicket']);
+Route::get('/AllTickets', [ResponController::class, 'getAllTickets']);
+Route::post('/tickets/{tracking_id}/status', [ResponController::class, 'updateStatus']);
+Route::delete('/tickets/{tracking_id}', [ResponController::class, 'deleteTicket']);
+Route::get('/tickets/date-range', [ResponController::class, 'getTicketsByDateRange']); // Route baru untuk date range
+
+Route::get('/mikrotik/test', [OVPNController::class, 'checkConnection']);
+
+Route::post('/mikrotik/run-migrations', [ArtisanController::class, 'runMigrations']);
+Route::post('/mikrotik/run-rollback', [ArtisanController::class, 'runrollback']);
+
+Route::post('/mikrotik/update-voucher', [DatabaseController::class, 'updateVoucher']);
+

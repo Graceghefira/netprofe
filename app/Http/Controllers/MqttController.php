@@ -1,26 +1,18 @@
 <?php
 
 namespace App\Http\Controllers;
-use Illuminate\Pagination\LengthAwarePaginator;
+
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use PhpMqtt\Client\ConnectionSettings;
 use PhpMqtt\Client\MqttClient;
 use RouterOS\Client;
 use RouterOS\Query;
 
-class MqttController extends Controller
-{
-    protected function getClient()
-    {
-        $config = [
-            'host' => 'id-4.hostddns.us',  // Ganti dengan domain DDNS kamu
-            'user' => 'admin',             // Username Mikrotik
-            'pass' => 'admin2',            // Password Mikrotik
-            'port' => 21326,                // Port API Mikrotik (default 8728)
-        ];
 
-        return new Client($config);
-    }
+class MqttController extends BaseMikrotikController
+{
+
 
     public function connectToMqtt()
 {
@@ -57,7 +49,10 @@ class MqttController extends Controller
     public function getHotspotUsers1()
 {
     try {
-        $client = $this->getClient();
+        $endpoint = Cache::get('global_endpoint');
+
+        // Dapatkan client berdasarkan endpoint
+        $client = $this->getClient($endpoint);
 
         // Query to get the list of all hotspot users
         $userQuery = new Query('/ip/hotspot/user/print');
@@ -150,6 +145,23 @@ class MqttController extends Controller
 
             // Ensure $mqtt is not null
             if ($mqtt) {
+                // Define the topic based on the endpoint (prefix logic based on more than 3 cases)
+                switch ($endpoint) {
+                    case 'primary':
+                        $topicSuffix = 'Netpro';
+                        break;
+                    case 'secondary':
+                        $topicSuffix = 'imago';
+                        break;
+                    case 'third':
+                        $topicSuffix = 'Wow';
+                        break;
+                    default:
+                        $topicSuffix = 'default';  // for any unknown endpoint, use default
+                        break;
+                }
+                $topic = $topicSuffix . '/hotspot-user'; // Prefix is dynamic based on endpoint
+
                 // Convert message data to JSON (including total bytes data)
                 $mqttMessage = json_encode([
                     'total_user' => count($modifiedUsers),
@@ -159,8 +171,8 @@ class MqttController extends Controller
                     'users' => $modifiedUsers,
                 ]);
 
-                // Publish message to the topic with retain flag set to true
-                $mqtt->publish('/test_publish', $mqttMessage, 0, true); // QoS 0, Retain true
+                // Publish message to the dynamic topic
+                $mqtt->publish($topic, $mqttMessage, 0, retain: true); // QoS 0, Retain true
 
                 // Disconnect from MQTT broker
                 $mqtt->disconnect();
@@ -181,103 +193,285 @@ class MqttController extends Controller
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
-    }
+}
 
     public function getHotspotProfile()
-{
-    try {
-        // Koneksi ke MikroTik
-        $client = $this->getClient();
+    {
+        try {
+            // Koneksi ke MikroTik
+            $endpoint = Cache::get('global_endpoint', 'primary'); // Default ke 'primary'
 
-        // Query untuk mendapatkan semua profil Hotspot dari MikroTik
-        $query = new Query('/ip/hotspot/user/profile/print');
+            // Dapatkan client berdasarkan endpoint
+            $client = $this->getClient($endpoint);
 
-        // Eksekusi query
-        $profiles = $client->query($query)->read();
+            // Query untuk mendapatkan semua profil Hotspot dari MikroTik
+            $query = new Query('/ip/hotspot/user/profile/print');
 
-        // Inisialisasi cache untuk menyimpan data sebelumnya
-        static $previousProfiles = null;
+            // Eksekusi query
+            $profiles = $client->query($query)->read();
 
-        if (!empty($profiles)) {
-            $result = [];
+            // Inisialisasi cache untuk menyimpan data sebelumnya
+            static $previousProfiles = null;
 
-            // Ambil semua data dari tabel user_profile_link
-            $links = DB::table('user_profile_link')->get()->pluck('link', 'name')->toArray();
+            if (!empty($profiles)) {
+                $result = [];
 
-            // Loop melalui setiap profil di MikroTik
-            foreach ($profiles as $profile) {
-                $profileName = $profile['name'];
+                // Ambil semua data dari tabel user_profile_link
+                $links = DB::table('user_profile_link')->get()->pluck('link', 'name')->toArray();
 
-                // Ambil link dari database jika ada, jika tidak gunakan default
-                $link = $links[$profileName] ?? 'No link available';
+                // Loop melalui setiap profil di MikroTik
+                foreach ($profiles as $profile) {
+                    $profileName = $profile['name'];
 
-                $result[] = [
-                    'profile_name' => $profileName,
-                    'shared_users' => $profile['shared-users'] ?? 'Not set',
-                    'rate_limit' => $profile['rate-limit'] ?? 'Not set',
-                    'link' => $link, // Tambahkan link dari database
-                ];
-            }
+                    // Ambil link dari database jika ada, jika tidak gunakan default
+                    $link = $links[$profileName] ?? 'No link available';
 
-            // Cek apakah data berubah dari sebelumnya
-            if ($previousProfiles !== $result) {
-                // Data berubah atau tidak sesuai dengan yang ada di MikroTik
-
-                // Hubungkan ke MQTT
-                $mqtt = $this->connectToMqtt();
-
-                // Data yang akan dipublish
-                $payload = json_encode(['profiles' => $result]);
-
-                // Publish data ke topik tertentu (misalnya: '/hotspot_profile')
-                $mqtt->publish('/hotspot_profile', $payload, 0, true);
-
-                // Disconnect MQTT setelah publish
-                $mqtt->disconnect();
-
-                // Update cache
-                $previousProfiles = $result;
-
-                return response()->json(['message' => 'Data updated and published to MQTT', 'profiles' => $result], 200);
-            } else {
-                // Jika data sama, cek konsistensi dengan MQTT
-                $mqtt = $this->connectToMqtt();
-                $currentPayload = $this->getMqttPayload('/hotspot_profile'); // Ambil data dari topik MQTT
-
-                if ($currentPayload !== json_encode(['profiles' => $result])) {
-                    // Jika data di MQTT tidak sesuai, ganti dengan data dari MikroTik
-                    $mqtt->publish('/hotspot_profile', json_encode(['profiles' => $result]), 0, true);
+                    $result[] = [
+                        'profile_name' => $profileName,
+                        'shared_users' => $profile['shared-users'] ?? 'Not set',
+                        'rate_limit' => $profile['rate-limit'] ?? 'Not set',
+                        'link' => $link, // Tambahkan link dari database
+                    ];
                 }
 
-                // Disconnect MQTT setelah validasi
-                $mqtt->disconnect();
+                // Hitung hash dari data yang sudah diproses untuk mendeteksi perubahan
+                $currentDataHash = md5(json_encode($result));
 
-                return response()->json(['message' => 'Data in MQTT validated. No changes needed.'], 200);
+                // Ambil hash terakhir dari sesi untuk membandingkan
+                $lastDataHash = session()->get('last_profile_data_hash', null);
+
+                // Jika data berubah, kirim ke MQTT
+                if ($currentDataHash !== $lastDataHash) {
+                    // MQTT Publish code menggunakan connectToMqtt function
+                    $mqtt = $this->connectToMqtt();
+
+                    // Pastikan $mqtt tidak null
+                    if ($mqtt) {
+                        // Tentukan topik berdasarkan endpoint
+                        switch ($endpoint) {
+                            case 'primary':
+                                $topicSuffix = 'Netpro';
+                                break;
+                            case 'secondary':
+                                $topicSuffix = 'imago';
+                                break;
+                            case 'third':
+                                $topicSuffix = 'Wow';
+                                break;
+                            default:
+                                $topicSuffix = 'default'; // Untuk endpoint yang tidak dikenal
+                                break;
+                        }
+                        $topic = $topicSuffix . '/hotspot-user-profile'; // Topik untuk user profile
+
+                        // Konversi data profil ke JSON
+                        $mqttMessage = json_encode([
+                            'profiles' => $result,
+                        ]);
+
+                        // Publish pesan ke topik
+                        $mqtt->publish($topic, $mqttMessage, 0, retain: true); // QoS 0, Retain true
+
+                        // Disconnect dari MQTT broker
+                        $mqtt->disconnect();
+
+                        // Update hash terakhir ke sesi
+                        session()->put('last_profile_data_hash', $currentDataHash);
+                    }
+                }
+
+                // Return JSON response hanya untuk user profile
+                return response()->json([
+                    'profiles' => $result,
+                ]);
             }
-        } else {
-            // Jika tidak ada profil ditemukan
-            return response()->json(['message' => 'No profiles found'], 404);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
         }
+    }
+
+    public function getRoutes()
+{
+    try {
+        // Retrieve the global endpoint from cache or use a default value
+        $endpoint = Cache::get('global_endpoint', 'primary'); // Default to 'primary'
+
+        // Get the MikroTik client based on the endpoint
+        $client = $this->getClient($endpoint);
+
+        // Query to fetch all routes from MikroTik
+        $routeQuery = new Query('/ip/route/print');
+        $routes = $client->query($routeQuery)->read();
+
+        // Initialize previous routes cache
+        static $previousRoutes = null;
+
+        if (!empty($routes)) {
+            // Only keep the necessary fields (dst.Address, gateway, inactive, active, connect)
+            $filteredRoutes = array_map(function ($route) {
+                return [
+                    'dst.Address' => $route['dst-address'] ?? null, // dst.Address
+                    'gateway' => $route['gateway'] ?? null,         // gateway
+                    'inactive' => $route['inactive'] ?? null,       // inactive
+                    'active' => $route['active'] ?? null,           // active
+                    'connect' => $route['connect'] ?? null,         // connect
+                ];
+            }, $routes);
+
+            // Calculate hash of the current data for change detection
+            $currentDataHash = md5(json_encode($filteredRoutes));
+
+            // Retrieve the last data hash from the session for comparison
+            $lastDataHash = session()->get('last_route_data_hash', null);
+
+            // If the data has changed, publish to MQTT
+            if ($currentDataHash !== $lastDataHash) {
+                // MQTT Publish code using connectToMqtt function
+                $mqtt = $this->connectToMqtt();
+
+                // Ensure MQTT connection is not null
+                if ($mqtt) {
+                    // Define the MQTT topic based on the endpoint
+                    switch ($endpoint) {
+                        case 'primary':
+                            $topicSuffix = 'Netpro';
+                            break;
+                        case 'secondary':
+                            $topicSuffix = 'imago';
+                            break;
+                        case 'third':
+                            $topicSuffix = 'Wow';
+                            break;
+                        default:
+                            $topicSuffix = 'default'; // For unrecognized endpoints
+                            break;
+                    }
+
+                    $topic = $topicSuffix . '/fail-over'; // Topic for the routes
+
+                    // Convert the filtered route data into JSON
+                    $mqttMessage = json_encode([
+                        'routes' => $filteredRoutes,
+                    ]);
+
+                    // Publish the data to MQTT
+                    $mqtt->publish($topic, $mqttMessage, 0, retain: true); // QoS 0, Retain true
+
+                    // Disconnect from the MQTT broker
+                    $mqtt->disconnect();
+
+                    // Update the session with the new hash to track changes
+                    session()->put('last_route_data_hash', $currentDataHash);
+                }
+            }
+
+            // Return the filtered route data in JSON response
+            return response()->json([
+                'total_routes' => count($filteredRoutes),
+                'routes' => $filteredRoutes,
+            ]);
+        }
+
+        // Return response if no routes are available
+        return response()->json(['message' => 'No routes found'], 404);
+
     } catch (\Exception $e) {
-        // Tangani error jika ada
+        // Handle exceptions and return error response
         return response()->json(['error' => $e->getMessage()], 500);
     }
     }
 
-    private function getMqttPayload($topic)
-{
-    $mqtt = $this->connectToMqtt();
-    $payload = null;
+    public function getNetwatch()
+    {
+        try {
+            // Retrieve the global endpoint from cache or use a default value
+            $endpoint = Cache::get('global_endpoint', 'primary'); // Default to 'primary'
 
-    $mqtt->subscribe($topic, function ($topic, $message) use (&$payload) {
-        $payload = $message;
-    }, 0);
+            // Get the MikroTik client based on the endpoint
+            $client = $this->getClient($endpoint);
 
-    $mqtt->loop(true); // Loop untuk menerima pesan
-    $mqtt->disconnect();
+            // Query to fetch all netwatch entries from MikroTik
+            $netwatchQuery = new Query('/tool/netwatch/print');
+            $netwatchEntries = $client->query($netwatchQuery)->read();
 
-    return $payload;
+            // Initialize previous netwatch cache
+            static $previousNetwatch = null;
+
+            if (!empty($netwatchEntries)) {
+                // Filter relevant fields from the Netwatch entries
+                $filteredNetwatch = array_map(function ($entry) {
+                    return [
+                        'host' => $entry['host'] ?? null, // Monitored host
+                        'status' => $entry['status'] ?? null, // Status (up/down)
+                        'since' => $entry['since'] ?? null, // Since when the status changed
+                        'timeout' => $entry['timeout'] ?? null, // Timeout period
+                        'interval' => $entry['interval'] ?? null, // Check interval
+                    ];
+                }, $netwatchEntries);
+
+                // Calculate hash of the current data for change detection
+                $currentDataHash = md5(json_encode($filteredNetwatch));
+
+                // Retrieve the last data hash from the session for comparison
+                $lastDataHash = session()->get('last_netwatch_data_hash', null);
+
+                // If the data has changed, publish to MQTT
+                if ($currentDataHash !== $lastDataHash) {
+                    // MQTT Publish code using connectToMqtt function
+                    $mqtt = $this->connectToMqtt();
+
+                    // Ensure MQTT connection is not null
+                    if ($mqtt) {
+                        // Define the MQTT topic based on the endpoint
+                        switch ($endpoint) {
+                            case 'primary':
+                                $topicSuffix = 'Netpro';
+                                break;
+                            case 'secondary':
+                                $topicSuffix = 'imago';
+                                break;
+                            case 'third':
+                                $topicSuffix = 'Wow';
+                                break;
+                            default:
+                                $topicSuffix = 'default'; // For unrecognized endpoints
+                                break;
+                        }
+
+                        $topic = $topicSuffix . '/netwatch-status'; // Topic for the Netwatch
+
+                        // Convert the filtered Netwatch data into JSON
+                        $mqttMessage = json_encode([
+                            'netwatch' => $filteredNetwatch,
+                        ]);
+
+                        // Publish the data to MQTT
+                        $mqtt->publish($topic, $mqttMessage, 0, retain: true); // QoS 0, Retain true
+
+                        // Disconnect from the MQTT broker
+                        $mqtt->disconnect();
+
+                        // Update the session with the new hash to track changes
+                        session()->put('last_netwatch_data_hash', $currentDataHash);
+                    }
+                }
+
+                // Return the filtered Netwatch data in JSON response
+                return response()->json([
+                    'total_netwatch' => count($filteredNetwatch),
+                    'netwatch' => $filteredNetwatch,
+                ]);
+            }
+
+            // Return response if no Netwatch entries are available
+            return response()->json(['message' => 'No netwatch entries found'], 404);
+
+        } catch (\Exception $e) {
+            // Handle exceptions and return error response
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     }
+
 
 
 

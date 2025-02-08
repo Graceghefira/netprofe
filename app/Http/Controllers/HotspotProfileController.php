@@ -4,21 +4,12 @@ namespace App\Http\Controllers;
 use RouterOS\Client;
 use RouterOS\Query;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
-class HotspotProfileController extends Controller
-{
-    protected function getClient()
-{
-    $config = [
-        'host' => 'id-4.hostddns.us',  // Ganti dengan domain DDNS kamu
-        'user' => 'admin',             // Username Mikrotik
-        'pass' => 'admin2',            // Password Mikrotik
-        'port' => 21326,                // Port API Mikrotik (default 8728)
-    ];
 
-    return new Client($config);
-    }
+class HotspotProfileController extends BaseMikrotikController
+{
 
     public function setHotspotProfile(Request $request)
 {
@@ -38,7 +29,10 @@ class HotspotProfileController extends Controller
 
     try {
         // Membuat koneksi ke MikroTik
-        $client = $this->getClient();
+        $endpoint = Cache::get('global_endpoint');
+
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
 
         // Cek apakah profil sudah ada di MikroTik
         $checkQuery = (new Query('/ip/hotspot/user/profile/print'))
@@ -113,7 +107,10 @@ class HotspotProfileController extends Controller
 {
     try {
         // Koneksi ke MikroTik
-        $client = $this->getClient();
+        $endpoint = Cache::get('global_endpoint');
+
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
 
         // Query untuk mendapatkan semua profil Hotspot
         $query = new Query('/ip/hotspot/user/profile/print');
@@ -134,6 +131,9 @@ class HotspotProfileController extends Controller
                 ];
             }
 
+            $hotspotController = app()->make(\App\Http\Controllers\MqttController::class);
+            $hotspotController->getHotspotProfile();
+
             // Kembalikan hasil sebagai response JSON tanpa pagination
             return response()->json(['profiles' => $result], 200);
         } else {
@@ -150,7 +150,10 @@ class HotspotProfileController extends Controller
     {
         try {
             // Koneksi ke MikroTik
-            $client = $this->getClient();
+            $endpoint = Cache::get('global_endpoint');
+
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
 
             // Query untuk mendapatkan semua profil Hotspot
             $query = new Query('/ip/hotspot/user/profile/print');
@@ -216,7 +219,10 @@ class HotspotProfileController extends Controller
     {
         try {
             // Koneksi ke MikroTik
-            $client = $this->getClient();
+            $endpoint = Cache::get('global_endpoint');
+
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
 
             // Query untuk mendapatkan profil Hotspot berdasarkan nama
             $query = new Query('/ip/hotspot/user/profile/print');
@@ -258,7 +264,10 @@ class HotspotProfileController extends Controller
 {
     try {
         // Koneksi ke MikroTik
-        $client = $this->getClient();
+        $endpoint = Cache::get('global_endpoint');
+
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
 
         // Query untuk mencari profil berdasarkan nama
         $checkQuery = (new Query('/ip/hotspot/user/profile/print'))
@@ -310,7 +319,10 @@ class HotspotProfileController extends Controller
 
     try {
         // Koneksi ke MikroTik
-        $client = $this->getClient();
+        $endpoint = Cache::get('global_endpoint');
+
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
 
         // Query untuk mencari profil berdasarkan nama
         $checkQuery = (new Query('/ip/hotspot/user/profile/print'))

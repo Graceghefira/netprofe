@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('name');
             $table->string('no_hp')->unique();
             $table->string('password')->nullable();
+            $table->enum('role', ['pegawai', 'admin', 'superadmin'])->default('pegawai');
             $table->rememberToken();
             $table->timestamp('start_time')->nullable();
             $table->timestamp('expiry_time')->nullable();

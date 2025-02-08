@@ -1,32 +1,27 @@
 <?php
 
+
 namespace App\Http\Controllers;
+
 use RouterOS\Client;
 use RouterOS\Query;
 use Illuminate\Http\Request;
 use App\Models\AkunKantor;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-class ByteController extends Controller
+class ByteController extends BaseMikrotikController
 {
-
-    protected function getClient()
-    {
-        $config = [
-            'host' => 'id-4.hostddns.us',  // Ganti dengan domain DDNS kamu
-            'user' => 'admin',             // Username Mikrotik
-            'pass' => 'admin2',            // Password Mikrotik
-            'port' => 21326,                // Port API Mikrotik (default 8728)
-        ];
-
-        return new Client($config);
-    }
 
     public function getHotspotUsers()
 {
     try {
-        $client = $this->getClient();
+        // Membuat koneksi ke MikroTik
+        $endpoint = Cache::get('global_endpoint');
+
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
 
         // Query untuk mendapatkan daftar semua pengguna hotspot
         $userQuery = new Query('/ip/hotspot/user/print');
@@ -97,7 +92,11 @@ class ByteController extends Controller
     public function deleteHotspotUserByPhoneNumber($no_hp)
 {
     try {
-        $client = $this->getClient();
+        // Membuat koneksi ke MikroTik
+        $endpoint = Cache::get('global_endpoint');
+
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
 
         // Query untuk mendapatkan pengguna berdasarkan nomor telepon
         $query = new Query('/ip/hotspot/user/print');
@@ -149,7 +148,11 @@ class ByteController extends Controller
 {
     try {
         // Koneksi ke MikroTik
-        $client = $this->getClient();
+        // Membuat koneksi ke MikroTik
+        $endpoint = Cache::get('global_endpoint');
+
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
 
         // Query untuk mendapatkan semua profil Hotspot
         $profileQuery = new Query('/ip/hotspot/user/profile/print');
@@ -364,7 +367,11 @@ class ByteController extends Controller
 {
     try {
         // Inisialisasi koneksi ke Mikrotik
-        $client = $this->getClient();
+        // Membuat koneksi ke MikroTik
+        $endpoint = Cache::get('global_endpoint');
+
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
 
         // Query untuk mendapatkan trafik dari semua user yang aktif
         $query = (new Query('/ip/hotspot/active/print'));
@@ -423,6 +430,8 @@ class ByteController extends Controller
             }
         }
 
+        $this->updateUserBytesFromMikrotik1();
+
         return response()->json(['success' => 'Data berhasil diperbarui'], 200);
 
     } catch (\Exception $e) {
@@ -431,110 +440,203 @@ class ByteController extends Controller
     }
     }
 
+    public function updateUserBytesFromMikrotik1() {
+        try {
+            // Inisialisasi koneksi ke Mikrotik
+            $endpoint = Cache::get('global_endpoint');
+
+            // Kondisi untuk memeriksa endpoint
+            if ($endpoint === 'third') {
+                $table = 'wow_bandwidth_log';
+                $queryType = 'interface';
+            } else {
+                $table = 'user_bytes_log';
+                $queryType = 'hotspot';
+            }
+
+            // Membuat koneksi ke MikroTik
+            $client = $this->getClient($endpoint);
+
+            // Query berdasarkan jenis endpoint
+            if ($queryType === 'hotspot') {
+                $query = (new Query('/ip/hotspot/active/print'));
+            } elseif ($queryType === 'interface') {
+                $query = (new Query('/interface/print'));
+            }
+
+            // Eksekusi query
+            $data = $client->query($query)->read();
+
+            // Debug: Cetak seluruh data yang diterima
+            Log::info("Data: " . print_r($data, true));
+
+            if ($queryType === 'hotspot') {
+                // Loop melalui setiap user yang aktif
+                foreach ($data as $user) {
+                    // Ambil nama pengguna dan trafik
+                    $userName = $user['user'];
+                    $bytesIn = $user['bytes-in'] ?? 0;
+                    $bytesOut = $user['bytes-out'] ?? 0;
+                    $role = $user['profile'] ?? 'default';
+
+                    // Ambil log terakhir untuk perbandingan
+                    $existingLog = DB::table($table)
+                        ->where('user_name', $userName)
+                        ->orderBy('timestamp', 'desc')
+                        ->first();
+
+                    // Simpan hanya jika ada perubahan
+                    if (!$existingLog || $existingLog->bytes_in != $bytesIn || $existingLog->bytes_out != $bytesOut || strtolower($existingLog->role) != strtolower($role)) {
+                        DB::table($table)->insert([
+                            'user_name' => $userName,
+                            'bytes_in' => $bytesIn,
+                            'bytes_out' => $bytesOut,
+                            'role' => $role,
+                            'timestamp' => now(),
+                        ]);
+                    }
+                }
+            } elseif ($queryType === 'interface') {
+                $lastTimestamp = DB::table('wow_bandwith_log')->max('timestamp');
+
+                foreach ($data as $interface) {
+                    $rx = $interface['rx-byte'];
+                    $tx = $interface['tx-byte'];
+                    $timestamp = now();
+                    $interfaceName = $interface['name'];
+
+                    // Ambil data terakhir
+                    $lastData = DB::table('wow_bandwith_log')
+                        ->where('interface_name', $interfaceName)
+                        ->orderBy('timestamp', 'desc')
+                        ->first();
+
+                    if ($lastData) {
+                        $deltaRx = $rx - $lastData->bytes_in;
+                        $deltaTx = $tx - $lastData->bytes_out;
+                    } else {
+                        $deltaRx = $rx;
+                        $deltaTx = $tx;
+                    }
+
+                    // Simpan data ke tabel
+                    DB::table('wow_bandwith_log')->insert([
+                        'interface_name' => $interfaceName,
+                        'bytes_in' => $deltaRx,
+                        'bytes_out' => $deltaTx,
+                        'timestamp' => $timestamp,
+                        'role' => 'daily'
+                    ]);
+
+                }
+            }
+
+
+            return response()->json(['success' => 'Data berhasil diperbarui'], 200);
+        } catch (\Exception $e) {
+            Log::error('Error saat updateUserBytesFromMikrotik: ' . $e->getMessage());
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+
     public function getHotspotUsersByUniqueRole(Request $request)
 {
     try {
-        // Get the role and date range from the request
+        $dbTable = $request->input('dbTable');
         $role = $request->input('role');
         $startDate = $request->input('startDate');
         $endDate = $request->input('endDate');
 
-        // Validate if startDate or endDate is missing
-        if (!$startDate || !$endDate) {
-            return response()->json(['error' => 'Tanggal awal dan akhir harus disediakan'], 400);
+        // Validasi
+        if (!$dbTable || !$startDate || !$endDate) {
+            return response()->json(['error' => 'Parameter harus lengkap'], 400);
         }
 
-        // Adjust startDate and endDate to cover the full days
+        // Atur tanggal
         $startDate = $startDate . ' 00:00:00';
         $endDate = $endDate . ' 23:59:59';
 
-        // Build the initial query
-        $query = DB::table('user_bytes_log')
+        // Tentukan nama kolom
+        $columnName = ($dbTable == 'wow_bandwith_log') ? 'interface_name' : 'user_name';
+
+        // Query database
+        $query = DB::table($dbTable)
             ->select(
                 DB::raw('DATE(timestamp) as date'),
                 DB::raw('SUM(bytes_in) as total_bytes_in'),
                 DB::raw('SUM(bytes_out) as total_bytes_out'),
                 DB::raw('(SUM(bytes_in) + SUM(bytes_out)) as total_bytes')
             )
-            ->whereBetween('timestamp', [$startDate, $endDate]); // Filter by date range
+            ->whereBetween('timestamp', [$startDate, $endDate]);
 
-        // Add role filtering only if a specific role is specified and not "All"
+        // Filter role
         if ($role !== "All") {
             $query->where('role', $role);
         }
 
-        // Group by date and order results
+        // Group by tanggal dan urutkan hasil
         $logs = $query->groupBy(DB::raw('DATE(timestamp)'))
             ->orderBy(DB::raw('DATE(timestamp)'), 'asc')
             ->get();
 
-        // Calculate overall totals for bytes_in and bytes_out
+        // Hitung total bytes
         $totalBytesIn = $logs->sum('total_bytes_in');
         $totalBytesOut = $logs->sum('total_bytes_out');
         $totalBytes = $totalBytesIn + $totalBytesOut;
 
-        // Loop to get the largest user per day and all users for the specified role or all roles
+        // Loop untuk mendapatkan pengguna terbesar per hari
         foreach ($logs as $log) {
-            // Get the user with the highest total bytes for the day
-            $largestUserQuery = DB::table('user_bytes_log')
-                ->select(
-                    'user_name',
-                    DB::raw('(bytes_in + bytes_out) as total_user_bytes')
-                )
-                ->whereDate('timestamp', $log->date); // Only for that day
+            $largestUserQuery = DB::table($dbTable)
+                ->select($columnName, DB::raw('(bytes_in + bytes_out) as total_user_bytes'))
+                ->whereDate('timestamp', $log->date);
 
-            // Add role filtering if role is specified and not "All"
+            // Filter role
             if ($role !== "All") {
                 $largestUserQuery->where('role', $role);
             }
 
-            // Get the largest user for the day
             $largestUser = $largestUserQuery->orderBy('total_user_bytes', 'desc')->first();
 
-            // Calculate the largest user's contribution as a percentage of total bytes
+            // Hitung persentase pengguna terbesar
             $largestUserPercentage = ($largestUser && $log->total_bytes > 0) ? round(($largestUser->total_user_bytes / $log->total_bytes) * 100) : 0;
 
-            // Add the largest user info to the day's log
+            // Tambahkan info pengguna terbesar ke log harian
             $log->largest_user = [
-                'user_name' => $largestUser->user_name ?? null,
-                'percentage' => $largestUserPercentage . "%" // Rounded percentage
+                $columnName => $largestUser->$columnName ?? null,
+                'percentage' => $largestUserPercentage . "%"
             ];
 
-            // Get all users for that specific day and role, or all roles if role is "All"
-            $usersQuery = DB::table('user_bytes_log')
-                ->select(
-                    'user_name',
-                    DB::raw('SUM(bytes_in) as total_bytes_in'),
-                    DB::raw('SUM(bytes_out) as total_bytes_out'),
-                    DB::raw('(SUM(bytes_in) + SUM(bytes_out)) as total_user_bytes')
-                )
-                ->whereDate('timestamp', $log->date) // Only for that day
-                ->groupBy('user_name') // Group by user name
+            // Dapatkan semua pengguna untuk hari tersebut
+            $usersQuery = DB::table($dbTable)
+                ->select($columnName, DB::raw('SUM(bytes_in) as total_bytes_in'), DB::raw('SUM(bytes_out) as total_bytes_out'), DB::raw('(SUM(bytes_in) + SUM(bytes_out)) as total_user_bytes'))
+                ->whereDate('timestamp', $log->date)
+                ->groupBy($columnName)
                 ->orderBy('total_user_bytes', 'desc');
 
-            // Add role filtering if role is specified and not "All"
+            // Filter role
             if ($role !== "All") {
                 $usersQuery->where('role', $role);
             }
 
-            // Retrieve users for that day
             $users = $usersQuery->get();
 
-            // Add all user info to the day's log
+            // Tambahkan info semua pengguna ke log harian
             $log->all_users = $users;
         }
 
-        // Return the response as JSON
+        // Return response JSON
         return response()->json([
-            'details' => $logs, // Daily bytes_in, bytes_out, total, largest user, and all users
+            'details' => $logs,
             'total_bytes_in' => $totalBytesIn,
             'total_bytes_out' => $totalBytesOut,
             'total_bytes' => $totalBytes,
-            'role' => $role, // The specified role or "All"
+            'role' => $role,
+            'dbTable' => $dbTable
         ]);
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
-    }
+}
 
 }

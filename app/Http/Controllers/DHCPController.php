@@ -4,23 +4,11 @@ namespace App\Http\Controllers;
 use RouterOS\Client;
 use RouterOS\Query;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 
-
-class DHCPController extends Controller
+class DHCPController extends BaseMikrotikController
 {
-    protected function getClient()
-{
-    $config = [
-        'host' => 'id-4.hostddns.us',  // Ganti dengan domain DDNS kamu
-        'user' => 'admin',             // Username Mikrotik
-        'pass' => 'admin2',            // Password Mikrotik
-        'port' => 21326,                // Port API Mikrotik (default 8728)
-    ];
-
-    return new Client($config);
-
-    }
 
     public function addOrUpdateDhcp(Request $request)
 {
@@ -34,8 +22,11 @@ class DHCPController extends Controller
     ]);
 
     // Panggil fungsi getClient untuk mendapatkan koneksi Mikrotik
-    $client = $this->getClient();
+    // Membuat koneksi ke MikroTik
+        $endpoint = Cache::get('global_endpoint');
 
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
     try {
         // Ambil daftar DHCP server dan cek apakah sudah ada yang menggunakan nama yang sama
         $query = new Query('/ip/dhcp-server/print');
@@ -95,8 +86,11 @@ class DHCPController extends Controller
     ]);
 
     // Panggil fungsi getClient untuk mendapatkan koneksi Mikrotik
-    $client = $this->getClient();
+    // Membuat koneksi ke MikroTik
+        $endpoint = Cache::get('global_endpoint');
 
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
     try {
         // Ambil daftar network yang ada untuk melakukan pengecekan
         $query = new Query('/ip/dhcp-server/network/print');
@@ -164,8 +158,11 @@ class DHCPController extends Controller
             'binding_comment' => 'nullable|string',  // Opsional: Komentar untuk IP binding
         ]);
 
-        $client = $this->getClient();
+        // Membuat koneksi ke MikroTik
+        $endpoint = Cache::get('global_endpoint');
 
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
         try {
             // Ambil daftar lease berdasarkan address
             $query = new Query('/ip/dhcp-server/lease/print');
@@ -223,8 +220,11 @@ class DHCPController extends Controller
     public function getLeases()
     {
         // Panggil fungsi getClient untuk mendapatkan koneksi Mikrotik
-        $client = $this->getClient();
+        // Membuat koneksi ke MikroTik
+        $endpoint = Cache::get('global_endpoint');
 
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
         try {
             // Buat query untuk mengambil data leases dari DHCP server
             $query = new Query('/ip/dhcp-server/lease/print');
@@ -250,8 +250,11 @@ class DHCPController extends Controller
     public function getDhcpServers()
 {
     // Panggil fungsi getClient untuk mendapatkan koneksi Mikrotik
-    $client = $this->getClient();
+    // Membuat koneksi ke MikroTik
+        $endpoint = Cache::get('global_endpoint');
 
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
     try {
         // 1. Ambil data DHCP server
         $dhcpQuery = new Query('/ip/dhcp-server/print');
@@ -288,8 +291,11 @@ class DHCPController extends Controller
     public function getDhcpServerByName($name)
 {
     // Panggil fungsi getClient untuk mendapatkan koneksi Mikrotik
-    $client = $this->getClient();
+    // Membuat koneksi ke MikroTik
+        $endpoint = Cache::get('global_endpoint');
 
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
     try {
         // 1. Ambil data DHCP server berdasarkan nama
         $dhcpQuery = new Query('/ip/dhcp-server/print');
@@ -322,8 +328,11 @@ class DHCPController extends Controller
     public function getNetworks()
     {
         // Panggil fungsi getClient untuk mendapatkan koneksi Mikrotik
-        $client = $this->getClient();
+        // Membuat koneksi ke MikroTik
+        $endpoint = Cache::get('global_endpoint');
 
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
         try {
             // Buat query untuk mengambil data network dari DHCP server
             $query = new Query('/ip/dhcp-server/network/print');
@@ -349,8 +358,11 @@ class DHCPController extends Controller
     public function getNetworksByGateway($gateway)
 {
     // Panggil fungsi getClient untuk mendapatkan koneksi Mikrotik
-    $client = $this->getClient();
+    // Membuat koneksi ke MikroTik
+        $endpoint = Cache::get('global_endpoint');
 
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
     try {
         // Buat query untuk mengambil data network dari DHCP server dengan filter berdasarkan gateway
         $query = (new Query('/ip/dhcp-server/network/print'))
@@ -377,8 +389,11 @@ class DHCPController extends Controller
     public function deleteDhcpServerByName($name)
     {
         // Panggil fungsi getClient untuk mendapatkan koneksi Mikrotik
-        $client = $this->getClient();
+        // Membuat koneksi ke MikroTik
+        $endpoint = Cache::get('global_endpoint');
 
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
         try {
             // Pertama, ambil data DHCP server untuk mendapatkan ID server berdasarkan nama
             $query = new Query('/ip/dhcp-server/print');
@@ -419,8 +434,11 @@ class DHCPController extends Controller
     public function deleteDhcpNetworkByGateway($gateway)
 {
     // Panggil fungsi getClient untuk mendapatkan koneksi Mikrotik
-    $client = $this->getClient();
+    // Membuat koneksi ke MikroTik
+        $endpoint = Cache::get('global_endpoint');
 
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
     try {
         // Ambil data network untuk mendapatkan ID berdasarkan gateway
         $query = new Query('/ip/dhcp-server/network/print');
@@ -459,8 +477,11 @@ class DHCPController extends Controller
     public function deleteDhcpLeaseAndIpBindingByAddress($address)
     {
         // Panggil fungsi getClient untuk mendapatkan koneksi Mikrotik
-        $client = $this->getClient();
+        // Membuat koneksi ke MikroTik
+        $endpoint = Cache::get('global_endpoint');
 
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
         try {
             // Ambil data lease untuk mendapatkan ID berdasarkan address
             $queryLease = new Query('/ip/dhcp-server/lease/print');

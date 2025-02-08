@@ -10,10 +10,10 @@ class FileController extends Controller
     protected function getClient()
     {
         $config = [
-            'host' => 'id-4.hostddns.us',  // Ganti dengan domain DDNS kamu
-            'user' => 'admin',             // Username Mikrotik
-            'pass' => 'admin2',            // Password Mikrotik
-            'port' => 21326,               // Port FTP Mikrotik (default 21)
+            'host' => '45.149.93.122',
+            'user' => 'admin',
+            'pass' => 'dhiva1029',
+            'port' => 8183,
         ];
 
         // Buat koneksi FTP
@@ -142,7 +142,6 @@ class FileController extends Controller
         return response()->json(['message' => 'Failed to retrieve file list.'], 500);
     }
     }
-
 
     public function downloadFileFromMikrotik($fileName)
 {

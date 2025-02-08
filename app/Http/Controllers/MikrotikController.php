@@ -14,20 +14,11 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
-class MikrotikController extends Controller
+
+
+
+class MikrotikController extends BaseMikrotikController
 {
-
-    protected function getClient()
-    {
-        $config = [
-            'host' => 'id-4.hostddns.us',  // Ganti dengan domain DDNS kamu
-            'user' => 'admin',             // Username Mikrotik
-            'pass' => 'admin2',            // Password Mikrotik
-            'port' => 21326,                // Port API Mikrotik (default 8728)
-        ];
-
-        return new Client($config);
-    }
 
     protected function sendwa($no_hp, $login_link)
     {
@@ -72,7 +63,11 @@ class MikrotikController extends Controller
     public function getHotspotUsersByte()
 {
     try {
-        $client = $this->getClient();
+        // Ambil endpoint dari cache atau gunakan default
+        $endpoint = Cache::get('global_endpoint');
+
+        // Dapatkan client berdasarkan endpoint
+        $client = $this->getClient($endpoint);
 
         // Query untuk mendapatkan daftar semua pengguna hotspot
         $userQuery = new Query('/ip/hotspot/user/print');
@@ -193,7 +188,11 @@ class MikrotikController extends Controller
     public function getHotspotUserByPhoneNumber($no_hp)
 {
     try {
-        $client = $this->getClient();
+        // Ambil endpoint dari cache atau gunakan default
+         $endpoint = Cache::get('global_endpoint');
+
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
 
         // Query untuk mendapatkan pengguna berdasarkan nomor telepon
         $query = new Query('/ip/hotspot/user/print');
@@ -241,7 +240,11 @@ class MikrotikController extends Controller
 {
     try {
         // Inisiasi client untuk berkomunikasi dengan MikroTik
-        $client = $this->getClient();
+        // Ambil endpoint dari cache atau gunakan default
+         $endpoint = Cache::get('global_endpoint');
+
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
 
         // Membuat query untuk mendapatkan semua pengguna berdasarkan profile_name
         $query = new Query('/ip/hotspot/user/print');
@@ -317,7 +320,11 @@ class MikrotikController extends Controller
     $name = $request->input('name', null); // Optional untuk extend
 
     try {
-        $client = $this->getClient();
+        // Ambil endpoint dari cache atau gunakan default
+         $endpoint = Cache::get('global_endpoint');
+
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
 
         // Cek apakah user sudah ada di MikroTik
         $checkQuery = (new Query('/ip/hotspot/user/print'))->where('name', $no_hp);
@@ -469,7 +476,11 @@ class MikrotikController extends Controller
     $name = $request->input('name', null);
 
     try {
-        $client = $this->getClient();
+        // Ambil endpoint dari cache atau gunakan default
+         $endpoint = Cache::get('global_endpoint');
+
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
 
         $checkQuery = (new Query('/ip/hotspot/user/print'))->where('name', $no_hp);
         $existingUsers = $client->query($checkQuery)->read();
@@ -500,6 +511,7 @@ class MikrotikController extends Controller
 
             return response()->json([
                 'message' => 'User baru ditambahkan tanpa expiry time.',
+                'no_hp' => $endpoint,
             ], 201);
         }
     } catch (\Exception $e) {
@@ -518,7 +530,11 @@ class MikrotikController extends Controller
         ]);
 
         try {
-            $client = $this->getClient();
+            // Ambil endpoint dari cache atau gunakan default
+         $endpoint = Cache::get('global_endpoint');
+
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
 
             // Cek apakah user sudah ada di MikroTik
             $checkQuery = (new Query('/ip/hotspot/user/print'))->where('name', $no_hp);
@@ -585,7 +601,11 @@ class MikrotikController extends Controller
     public function updateAllHotspotUsersByPhoneNumber()
 {
     try {
-        $client = $this->getClient();
+        // Ambil endpoint dari cache atau gunakan default
+         $endpoint = Cache::get('global_endpoint');
+
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
 
         // Ambil semua pengguna yang saat ini aktif dari tab "Active" MikroTik
         $getActiveUsersQuery = new Query('/ip/hotspot/active/print');
@@ -687,7 +707,11 @@ class MikrotikController extends Controller
         if ($lock->get()) {
             try {
                 // Initialize MikroTik client
-                $client = $this->getClient();
+                // Ambil endpoint dari cache atau gunakan default
+         $endpoint = Cache::get('global_endpoint');
+
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
                 $query = new Query('/ip/hotspot/user/print');
                 $users = $client->query($query)->read();
 
@@ -749,7 +773,7 @@ class MikrotikController extends Controller
         } else {
             return response()->json(['message' => 'Another hotspot user operation is in progress'], 429);
         }
-        }
+    }
 
 
 

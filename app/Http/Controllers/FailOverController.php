@@ -4,22 +4,11 @@ namespace App\Http\Controllers;
 use RouterOS\Client;
 use RouterOS\Query;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 
-class FailOverController extends Controller
+class FailOverController extends BaseMikrotikController
 {
-
-    protected function getClient()
-    {
-        $config = [
-            'host' => 'id-4.hostddns.us',  // Ganti dengan domain DDNS kamu
-            'user' => 'admin',             // Username Mikrotik
-            'pass' => 'admin2',            // Password Mikrotik
-            'port' => 21326,                // Port API Mikrotik (default 8728)
-        ];
-
-        return new Client($config);
-    }
 
     private function setupRoutingFailover($client, $gatewayMain, $gatewayBackup, $metricMain = 1, $metricBackup = 2, $pingCheck = 'ping')
 {
@@ -81,7 +70,11 @@ class FailOverController extends Controller
 
         try {
             // Siapkan client MikroTik
-            $client = $this->getClient();
+            // Membuat koneksi ke MikroTik
+        $endpoint = Cache::get('global_endpoint');
+
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
 
             // Tambahkan routing failover (routing utama dan cadangan)
             $this->setupRoutingFailover($client, $gatewayMain, $gatewayBackup, $metricMain, $metricBackup);
@@ -120,7 +113,11 @@ class FailOverController extends Controller
     public function getRoute()
     {
         // Panggil fungsi getClient untuk mendapatkan koneksi Mikrotik
-        $client = $this->getClient();
+        // Membuat koneksi ke MikroTik
+        $endpoint = Cache::get('global_endpoint');
+
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
 
         try {
             // Buat query untuk mengambil data leases dari DHCP server
@@ -157,7 +154,11 @@ class FailOverController extends Controller
 
     try {
         // Ambil client MikroTik
-        $client = $this->getClient();
+        // Membuat koneksi ke MikroTik
+        $endpoint = Cache::get('global_endpoint');
+
+         // Dapatkan client berdasarkan endpoint
+         $client = $this->getClient($endpoint);
 
         // Cek apakah route dengan gateway utama ada
         $routeMainQuery = (new Query('/ip/route/print'))->where('gateway', $gatewayMain);
@@ -212,6 +213,37 @@ class FailOverController extends Controller
     }
     }
 
+    public function getNetwatch()
+{
+    // Panggil fungsi getClient untuk mendapatkan koneksi MikroTik
+    // Membuat koneksi ke MikroTik
+    $endpoint = Cache::get('global_endpoint');
 
+    // Dapatkan client berdasarkan endpoint
+    $client = $this->getClient($endpoint);
+
+    try {
+        // Buat query untuk mengambil data netwatch dari MikroTik
+        $query = new Query('/tool/netwatch/print');
+
+        // Jalankan query
+        $netwatchData = $client->query($query)->read();
+
+        // Kembalikan response ke user
+        return response()->json([
+            'status' => 'success',
+            'netwatch' => $netwatchData
+        ]);
+
+    } catch (\Exception $e) {
+        // Tangani error jika ada
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Failed to fetch netwatch: ' . $e->getMessage(),
+        ], 500);
+    }
+}
+
+    
 
 }
