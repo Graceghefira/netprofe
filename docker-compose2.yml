@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  fe:
+    build:
+      context: .
+      dockerfile: Dockerfile.fe
+    container_name: frontend
+    restart: unless-stopped
+    environment:
+      APP_NAME: ${APP_NAME}
+      APP_ENV: ${APP_ENV}
+      APP_KEY: ${APP_KEY}
+      APP_DEBUG: ${APP_DEBUG}
+      APP_URL: ${APP_URL}
+      DB_HOST: be
+      DB_PORT: 3307
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      MQTT_HOST: ${MQTT_HOST}
+      MQTT_PORT: ${MQTT_PORT}
+      MQTT_CLIENT_ID: ${MQTT_CLIENT_ID}
+      MQTT_CLEAN_SESSION: ${MQTT_CLEAN_SESSION}
+      MQTT_ENABLE_LOGGING: ${MQTT_ENABLE_LOGGING}
+      MQTT_AUTH_USERNAME: ${MQTT_AUTH_USERNAME}
+      MQTT_AUTH_PASSWORD: ${MQTT_AUTH_PASSWORD}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - .:/var/www
+    networks:
+      - app-network
+    depends_on:
+      - be
+
+  be:
+    build:
+      context: .
+      dockerfile: Dockerfile.be
+    container_name: backend
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+      - "8443:443"
+      - "3307:3306"
+      - "6381:6379"
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    name: app-network
+    driver: bridge
