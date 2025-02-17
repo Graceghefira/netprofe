@@ -1,15 +1,15 @@
 <?php
 
 namespace App\Http\Controllers;
-use RouterOS\Client;
-use RouterOS\Query;
-use Illuminate\Http\Request;
+
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use RouterOS\Query;
 use Illuminate\Support\Str;
+use RouterOS\Client;
 
-
-class AnnualController extends Controller
+class WhoopsController extends Controller
 {
     protected function getClient()
     {
@@ -25,7 +25,6 @@ class AnnualController extends Controller
 
     public function addHotspotUser1(Request $request)
 {
-    // Validasi input
     $request->validate([
         'voucher_hours' => 'required|integer|min:1',
         'voucher_count' => 'required|integer|min:1',
@@ -39,12 +38,11 @@ class AnnualController extends Controller
         $generatedUsernames = [];
 
         for ($i = 0; $i < $voucher_count; $i++) {
-            $username = strtoupper(Str::random(8)); // Username tetap sama
+            $username = strtoupper(Str::random(8));
             $password = $username ;
             $expiry_time = now()->addMinutes(1)->format('Y-m-d H:i:s');
             $link_login = "https://hotspot.awh.co.id/login?username={$username}&password={$password}";
 
-            // Menambahkan user baru tanpa mengecek apakah sudah ada
             $addUserQuery = (new Query('/ip/hotspot/user/add'))
                 ->equal('name', $username)
                 ->equal('password', $password)
@@ -72,10 +70,6 @@ class AnnualController extends Controller
                 'updated_at' => now(),
             ]);
         }
-
-        // Mengambil data pengguna terbaru
-        $hotspotController = app()->make(\App\Http\Controllers\MqttController::class);
-        $hotspotController->getHotspotUsers1();
 
         return response()->json([
             'message' => 'Voucher berhasil dibuat.',
@@ -219,17 +213,13 @@ class AnnualController extends Controller
     public function getHotspotUsers()
 {
     try {
-        // Inisialisasi koneksi ke Mikrotik
         $client = $this->getClient();
 
-        // Query untuk mengambil data pengguna hotspot
         $hotspotQuery = new Query('/ip/hotspot/user/print');
         $hotspotData = $client->q($hotspotQuery)->read();
 
-        // Menyusun informasi yang diambil dari API
         $response = [];
         foreach ($hotspotData as $user) {
-            // Hanya mengambil data username, password, comment, bytes-in, dan bytes-out
             $response[] = [
                 'username' => $user['name'] ?? 'Not Available',
                 'password' => $user['password'] ?? 'Not Available',
@@ -239,11 +229,9 @@ class AnnualController extends Controller
             ];
         }
 
-        // Mengembalikan hasil dalam format JSON
         return response()->json($response, 200);
 
     } catch (\Exception $e) {
-        // Tangani kesalahan dan kembalikan pesan error
         return response()->json(['error' => 'Failed to fetch hotspot users: ' . $e->getMessage()], 500);
     }
     }
@@ -251,31 +239,24 @@ class AnnualController extends Controller
     public function UpdateData()
 {
     try {
-        // Inisialisasi koneksi ke Mikrotik
         $client = $this->getClient();
 
-        // Query untuk mengambil data pengguna hotspot dari Mikrotik
         $hotspotQuery = new Query('/ip/hotspot/user/print');
         $hotspotData = $client->q($hotspotQuery)->read();
 
-        // Ambil semua voucher yang ada di tabel voucher_lists
-        $databaseVouchers = DB::table('voucher_lists')->get(); // Mengambil semua voucher dari voucher_lists
+        $databaseVouchers = DB::table('voucher_lists')->get();
 
-        // Menyusun informasi yang diambil dari API
         $response = [];
         $voucherNamesInHotspot = [];
 
-        // Menyimpan semua username yang ada di Mikrotik
         foreach ($hotspotData as $user) {
             $username = $user['name'] ?? null;
             $password = $user['password'] ?? null;
-            $profile = $user['profile'] ?? null; // Profile untuk mengecek apakah trial
+            $profile = $user['profile'] ?? null;
 
-            // Abaikan pengguna dengan profile 'default-trial'
             if ($username && $profile !== 'default-trial') {
                 $voucherNamesInHotspot[] = $username;
 
-                // Cek apakah voucher sudah ada di database
                 $dbVoucher = DB::table('voucher_lists')->where('voucher', $username)->first();
 
                 if ($dbVoucher) {
@@ -305,26 +286,22 @@ class AnnualController extends Controller
             }
         }
 
-        // Mengembalikan hasil dalam format JSON
         return response()->json($response, 200);
 
     } catch (\Exception $e) {
-        // Tangani kesalahan dan kembalikan pesan error
         return response()->json(['error' => 'Failed to fetch hotspot users: ' . $e->getMessage()], 500);
     }
     }
 
     public function setHotspotProfile(Request $request)
 {
-    // Validasi input
     $request->validate([
-        'profile_name' => 'required|string|max:255', // Nama profil
-        'shared_users' => 'required|integer|min:1',  // Jumlah shared users
-        'rate_limit' => 'nullable|string',           // Batas kecepatan (rx/tx)
-        'link' => 'nullable|string',                 // Link untuk disimpan di tabel user_profile_link
+        'profile_name' => 'required|string|max:255',
+        'shared_users' => 'required|integer|min:1',
+        'rate_limit' => 'nullable|string',
+        'link' => 'nullable|string',
     ]);
 
-    // Ambil data dari request
     $profile_name = $request->input('profile_name');
     $shared_users = $request->input('shared_users');
     $rate_limit = $request->input('rate_limit');
@@ -333,49 +310,36 @@ class AnnualController extends Controller
     try {
          $client = $this->getClient();
 
-        // Cek apakah profil sudah ada di MikroTik
         $checkQuery = (new Query('/ip/hotspot/user/profile/print'))
             ->where('name', $profile_name);
 
         $existingProfiles = $client->query($checkQuery)->read();
 
         if (!empty($existingProfiles)) {
-            // Jika profil sudah ada di MikroTik, cek apakah link-nya sudah ada di database
             $existingLink = DB::table('user_profile_link')
                 ->where('name', $profile_name)
                 ->exists();
 
-            // Jika entri belum ada di database, tambahkan
             if (!$existingLink) {
                 DB::table('user_profile_link')->insert([
-                    'name' => $profile_name, // Kolom 'name' menerima 'profile_name'
-                    'link' => $link,         // Kolom 'link' menerima 'link'
-                    'created_at' => now(),   // Timestamp saat ini untuk created_at
-                    'updated_at' => now(),   // Timestamp saat ini untuk updated_at
+                    'name' => $profile_name,
+                    'link' => $link,
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
-
-                // Panggil fungsi getHotspotUsers1 setelah update
-                $hotspotController = app()->make(\App\Http\Controllers\MqttController::class);
-                $hotspotController->getHotspotProfile();
 
                 return response()->json([
                     'message' => 'Profile sudah ada, tapi link-nya belum ada. Saya tambahin dulu ya'
                 ], 200);
             }
 
-            // Jika profil dan link sudah ada, tidak ada perubahan yang dilakukan
-            $hotspotController = app()->make(\App\Http\Controllers\MqttController::class);
-            $hotspotController->getHotspotUsers1();
-
             return response()->json(['message' => 'Profile dan link sudah ada, tidak ada perubahan yang dilakukan'], 200);
         } else {
-            // Jika profil belum ada, tambahkan profil baru ke MikroTik
             $addQuery = (new Query('/ip/hotspot/user/profile/add'))
                 ->equal('name', $profile_name)
                 ->equal('shared-users', $shared_users)
-                ->equal('keepalive-timeout', 'none'); // Set Keepalive Timeout menjadi unlimited (none)
+                ->equal('keepalive-timeout', 'none');
 
-            // Hanya masukkan rate-limit jika tidak kosong
             if (!empty($rate_limit)) {
                 $addQuery->equal('rate-limit', $rate_limit);
             }
@@ -385,9 +349,30 @@ class AnnualController extends Controller
             return response()->json(['message' => 'Hotspot profile created successfully'], 201);
         }
     } catch (\Exception $e) {
-        // Tangani error jika ada
         return response()->json(['error' => $e->getMessage()], 500);
     }
     }
 
+    function updateVoucher(Request $request)
+{
+    $request->validate([
+        'old_name' => 'required|string',
+        'new_name' => 'required|string',
+        'status' => 'required|string'
+    ]);
+
+    $updated = DB::table('voucher_lists')
+        ->where('name', $request->old_name)
+        ->update([
+            'name' => $request->new_name,
+            'status' => $request->status,
+            'updated_at' => now()
+        ]);
+
+    if ($updated) {
+        return response()->json(['message' => 'Voucher updated successfully']);
+    } else {
+        return response()->json(['message' => 'Voucher not found or not updated'], 404);
+    }
+    }
 }

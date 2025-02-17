@@ -20,7 +20,7 @@ class ArtisanController extends Controller
     public function runrollback()
 {
     try {
-        Artisan::call('migrate:rollback');
+        Artisan::call('migrate:reset');
         return response()->json(['message' => 'rollback berhasil dijalankan.']);
     } catch (\Exception $e) {
         return response()->json(['message' => 'Gagal menjalankan migrasi.', 'error' => $e->getMessage()], 500);

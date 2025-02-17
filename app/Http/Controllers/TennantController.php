@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 
-class BrowserController extends Controller
+class TennantController extends Controller
 {
     //
 }

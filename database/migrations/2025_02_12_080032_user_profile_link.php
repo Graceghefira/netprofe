@@ -11,10 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('mikrotik_logs', function (Blueprint $table) {
+        Schema::create('user_profile_link', function (Blueprint $table) {
             $table->id();
-            $table->string('username');
-            $table->string('status');
+            $table->string('name');
+            $table->string('link');
             $table->timestamps();
         });
     }
@@ -24,6 +24,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('mikrotik_logs');
+        Schema::dropIfExists('user_profile_link');
     }
 };
