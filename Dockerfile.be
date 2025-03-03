@@ -1,15 +1,8 @@
 FROM nginx:alpine
 
-# Install MySQL server and basic dependencies
-RUN apk add --no-cache \
-    mysql mysql-client bash openrc && \
-    rc-update add mysql default
-
-# Configure MySQL (optional: update paths as needed)
-COPY ./mysql/my.cnf /etc/mysql/my.cnf
-
-# Initialize MySQL data directory
-RUN mysql_install_db --user=mysql --ldata=/var/lib/mysql
+# Periksa dan tambahkan grup/user jika belum ada
+RUN getent group www-data || addgroup -S www-data && \
+    getent passwd www-data || adduser -S www-data -G www-data
 
 # Copy Nginx configuration
 COPY ./nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf
@@ -21,4 +14,5 @@ COPY ./netpro /usr/share/nginx/html
 EXPOSE 80 443 3306
 
 # Run both Nginx and MySQL as the main CMD
-CMD ["sh", "-c", "service mysql start && nginx -g 'daemon off;'"]
+CMD ["sh", "-c", "mysqld & nginx -g 'daemon off;'"]
+
