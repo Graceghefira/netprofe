@@ -1,17 +1,24 @@
-FROM nginx:alpine as nginx-stage
+FROM nginx:alpine
 
-# Install dependencies
-RUN apk add --no-cache bash curl mysql-client redis supervisor
+# Install MySQL server and basic dependencies
+RUN apk add --no-cache \
+    mysql mysql-client bash openrc && \
+    rc-update add mysql default
 
-# Copy configuration
+# Configure MySQL (optional: update paths as needed)
+COPY ./mysql/my.cnf /etc/mysql/my.cnf
+
+# Initialize MySQL data directory
+RUN mysql_install_db --user=mysql --ldata=/var/lib/mysql
+
+# Copy Nginx configuration
 COPY ./nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf
+
+# Copy Laravel application files
 COPY ./netpro /usr/share/nginx/html
 
-# Add supervisord configuration
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+# Expose Nginx and MySQL ports
+EXPOSE 80 443 3306
 
-# Expose ports
-EXPOSE 8081 8443 3307 6381
-
-# Start supervisord to manage all services
-CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+# Run both Nginx and MySQL as the main CMD
+CMD ["sh", "-c", "service mysql start && nginx -g 'daemon off;'"]

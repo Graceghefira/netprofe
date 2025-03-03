@@ -3,28 +3,43 @@ FROM php:8.2-fpm
 USER root
 
 # Install dependencies
-RUN apt-get clean && \
-    rm -rf /var/lib/apt/lists/* && \
-    mkdir -p /var/lib/apt/lists/partial && \
-    chmod -R 755 /var/lib/apt/lists/ && \
-    apt-get update && apt-get install -y \
-        git \
-        curl \
-        zip \
-        unzip && \
-    docker-php-ext-install pdo_mysql
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    zip \
+    unzip \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    libssl-dev \
+    libgd-dev && \
+    docker-php-ext-configure gd --with-freetype --with-jpeg && \
+    docker-php-ext-install gd pdo_mysql bcmath sockets && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install Composer
+COPY --from=composer:2.3.5 /usr/bin/composer /usr/bin/composer
 
 # Set working directory
 WORKDIR /var/www
+
+# Copy application code
 COPY . /var/www
 
-# Install composer
-COPY --from=composer:2.3.5 /usr/bin/composer /usr/bin/composer
-RUN composer install --no-dev --optimize-autoloader
+# Install Laravel dependencies
+RUN if [ -f composer.json ]; then composer install --optimize-autoloader --no-dev; fi && \
+    rm -rf ~/.composer/cache
 
 # Set permissions
-RUN chown -R www-data:www-data /var/www && chmod -R 775 /var/www/storage
+RUN chown -R www-data:www-data /var/www && \
+    chmod -R 775 /var/www/storage && \
+    chmod -R 775 /var/www/bootstrap/cache
 
-# Expose port and run the service
+# Run Laravel optimizations (optional)
+RUN php artisan config:cache && php artisan route:cache
+
+# Expose PHP-FPM port
 EXPOSE 9000
+
+# Use PHP-FPM as the default CMD
 CMD ["php-fpm"]
