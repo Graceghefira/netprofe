@@ -55,7 +55,7 @@ class MikrotikController extends CentralController
 {
     try {
 
-         $client = $this->getClient();
+         $client = $this->getClientLogin();
 
         $query = new Query('/ip/hotspot/user/print');
         $query->where('name', $no_hp);
@@ -93,7 +93,7 @@ class MikrotikController extends CentralController
     public function getHotspotUsersByProfileName($profile_name)
 {
     try {
-         $client = $this->getClient();
+         $client = $this->getClientLogin();
 
         $query = new Query('/ip/hotspot/user/print');
         $query->where('profile', $profile_name);
@@ -299,7 +299,7 @@ class MikrotikController extends CentralController
     $name = $request->input('name', null);
 
     try {
-         $client = $this->getClient();
+         $client = $this->getClientLogin();
 
         $checkQuery = (new Query('/ip/hotspot/user/print'))->where('name', $no_hp);
         $existingUsers = $client->query($checkQuery)->read();
@@ -315,18 +315,6 @@ class MikrotikController extends CentralController
                 ->equal('comment', "{$name}");
 
             $client->query($addUserQuery)->read();
-
-            if (in_array($profile, ['Owner', 'Staff'])) {
-                AkunKantor::create([
-                    'no_hp' => $no_hp,
-                    'name' => $name,
-                    'profile' => $profile,
-                ]);
-            }
-
-            // Panggil fungsi dari controller lain
-            // $hotspotController = app()->make(\App\Http\Controllers\MqttController::class);
-            // $hotspotController->getHotspotUsers1();
 
             return response()->json([
                 'message' => 'User baru ditambahkan tanpa expiry time.',

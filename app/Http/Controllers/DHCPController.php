@@ -18,7 +18,7 @@ class DHCPController extends CentralController
     ]);
 
 
-         $client = $this->getClient();
+         $client = $this->getClientLogin();
     try {
         $query = new Query('/ip/dhcp-server/print');
         $dhcpServers = $client->query($query)->read();
@@ -73,7 +73,7 @@ class DHCPController extends CentralController
         'netmask' => 'nullable|integer',
     ]);
 
-    $client = $this->getClient();
+    $client = $this->getClientLogin();
     try {
 
         $query = new Query('/ip/dhcp-server/network/print');
@@ -132,7 +132,7 @@ class DHCPController extends CentralController
             'binding_comment' => 'nullable|string',
         ]);
 
-         $client = $this->getClient();
+         $client = $this->getClientLogin();
         try {
             $query = new Query('/ip/dhcp-server/lease/print');
             $leases = $client->query($query)->read();
@@ -184,7 +184,7 @@ class DHCPController extends CentralController
     public function getLeases()
     {
 
-         $client = $this->getClient();
+         $client = $this->getClientLogin();
         try {
             $query = new Query('/ip/dhcp-server/lease/print');
 
@@ -206,7 +206,7 @@ class DHCPController extends CentralController
     public function getDhcpServers()
 {
 
-         $client = $this->getClient();
+         $client = $this->getClientLogin();
     try {
         $dhcpQuery = new Query('/ip/dhcp-server/print');
         $dhcpServers = $client->query($dhcpQuery)->read();
@@ -237,7 +237,7 @@ class DHCPController extends CentralController
     public function getDhcpServerByName($name)
 {
 
-         $client = $this->getClient();
+         $client = $this->getClientLogin();
     try {
         $dhcpQuery = new Query('/ip/dhcp-server/print');
         $dhcpQuery->where('name', $name);
@@ -265,7 +265,7 @@ class DHCPController extends CentralController
 
     public function getNetworks()
     {
-         $client = $this->getClient();
+         $client = $this->getClientLogin();
         try {
             $query = new Query('/ip/dhcp-server/network/print');
 
@@ -286,7 +286,7 @@ class DHCPController extends CentralController
 
     public function getNetworksByGateway($gateway)
 {
-         $client = $this->getClient();
+         $client = $this->getClientLogin();
     try {
         $query = (new Query('/ip/dhcp-server/network/print'))
                     ->where('gateway', $gateway);
@@ -307,7 +307,7 @@ class DHCPController extends CentralController
 
     public function deleteDhcpServerByName($name)
     {
-         $client = $this->getClient();
+         $client = $this->getClientLogin();
         try {
             $query = new Query('/ip/dhcp-server/print');
             $dhcpServers = $client->query($query)->read();
@@ -341,7 +341,7 @@ class DHCPController extends CentralController
 
     public function deleteDhcpNetworkByGateway($gateway)
 {
-         $client = $this->getClient();
+         $client = $this->getClientLogin();
     try {
         $query = new Query('/ip/dhcp-server/network/print');
         $dhcpNetworks = $client->query($query)->read();
@@ -375,7 +375,7 @@ class DHCPController extends CentralController
 
     public function deleteDhcpLeaseAndIpBindingByAddress($address)
     {
-         $client = $this->getClient();
+         $client = $this->getClientLogin();
         try {
             $queryLease = new Query('/ip/dhcp-server/lease/print');
             $dhcpLeases = $client->query($queryLease)->read();

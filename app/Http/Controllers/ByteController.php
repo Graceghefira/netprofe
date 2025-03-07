@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AkunKantor;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use RouterOS\Query;
 
@@ -13,7 +14,7 @@ class ByteController extends CentralController
 {
     try {
 
-         $client = $this->getClient();
+         $client = $this->getClientLogin();
 
         $userQuery = new Query('/ip/hotspot/user/print');
         $users = $client->query($userQuery)->read();
@@ -83,7 +84,7 @@ class ByteController extends CentralController
 {
     try {
 
-          $client = $this->getClient();
+          $client = $this->getClientLogin();
 
         $query = new Query('/ip/hotspot/user/print');
         $query->where('name', $no_hp);
@@ -127,7 +128,7 @@ class ByteController extends CentralController
     public function getHotspotProfile(Request $request)
 {
     try {
-          $client = $this->getClient();
+          $client = $this->getClientLogin();
 
         $profileQuery = new Query('/ip/hotspot/user/profile/print');
         $profiles = $client->query($profileQuery)->read();

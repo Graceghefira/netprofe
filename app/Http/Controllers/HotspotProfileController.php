@@ -25,7 +25,7 @@ class HotspotProfileController extends CentralController
 
     try {
 
-         $client = $this->getClient();
+         $client = $this->getClientLogin();
 
 
         $checkQuery = (new Query('/ip/hotspot/user/profile/print'))
@@ -93,7 +93,7 @@ class HotspotProfileController extends CentralController
     public function getHotspotProfile(Request $request)
 {
     try {
-        $client = $this->getClient();
+        $client = $this->getClientLogin();
         $query = new Query('/ip/hotspot/user/profile/print');
         $profiles = $client->query($query)->read();
 
@@ -126,7 +126,7 @@ class HotspotProfileController extends CentralController
     {
         try {
 
-         $client = $this->getClient();
+         $client = $this->getClientLogin();
 
             $query = new Query('/ip/hotspot/user/profile/print');
             $query->where('name', $profileName);
@@ -160,7 +160,7 @@ class HotspotProfileController extends CentralController
 {
     try {
 
-         $client = $this->getClient();
+         $client = $this->getClientLogin();
 
         $checkQuery = (new Query('/ip/hotspot/user/profile/print'))
             ->where('name', $profile_name);
@@ -201,7 +201,7 @@ class HotspotProfileController extends CentralController
 
     try {
 
-         $client = $this->getClient();
+         $client = $this->getClientLogin();
 
         $checkQuery = (new Query('/ip/hotspot/user/profile/print'))
             ->where('name', $profile_name);

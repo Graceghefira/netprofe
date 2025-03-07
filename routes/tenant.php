@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\TennantController;
 use Illuminate\Support\Facades\Route;
 use Stancl\Tenancy\Middleware\InitializeTenancyByDomain;
 use Stancl\Tenancy\Middleware\PreventAccessFromCentralDomains;
@@ -26,4 +28,11 @@ Route::middleware([
     Route::get('/', function () {
         return 'This is your multi-tenant application. The id of the current tenant is ' . tenant('id');
     });
+});
+
+Route::prefix('tenants')->group(function () {
+    Route::get('{id}', [TennantController::class, 'show']);
+    Route::post('/', [AuthController::class, 'register']);
+    Route::post('{id}', [TennantController::class, 'update']);
+    Route::delete('{id}', [TennantController::class, 'destroy']);
 });

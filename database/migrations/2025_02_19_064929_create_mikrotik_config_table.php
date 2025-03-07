@@ -9,22 +9,20 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-    public function up()
+    public function up(): void
     {
-        Schema::create('menus', function (Blueprint $table) {
+        Schema::create('mikrotik_config', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
-            $table->decimal('price', 10, 2);
-            $table->integer('expiry_time'); // dalam menit
+            $table->string('host');
+            $table->string('user');
+            $table->string('pass');
+            $table->integer('port')->default(8728);
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('menus');
+        Schema::dropIfExists('mikrotik_config');
     }
 };

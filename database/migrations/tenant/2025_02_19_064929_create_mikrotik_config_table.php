@@ -11,19 +11,18 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('mikrotik_logs', function (Blueprint $table) {
+        Schema::create('mikrotik_config', function (Blueprint $table) {
             $table->id();
-            $table->string('username');
-            $table->string('status');
+            $table->string('host');
+            $table->string('user');
+            $table->string('pass');
+            $table->integer('port')->default(8728);
             $table->timestamps();
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('mikrotik_logs');
+        Schema::dropIfExists('mikrotik_config');
     }
 };

@@ -12,7 +12,7 @@ class TerminalController extends CentralController
     try {
         $command = $request->input('command');
 
-        $client = $this->getClient();
+        $client = $this->getClientLogin();
 
         $query = new Query($command);
 
@@ -49,7 +49,7 @@ class TerminalController extends CentralController
     public function getRouterInfo()
         {
             try {
-                $client = $this->getClient();
+                $client = $this->getClientLogin();
 
                 $resourceQuery = new Query('/system/resource/print');
                 $resourceData = $client->q($resourceQuery)->read();

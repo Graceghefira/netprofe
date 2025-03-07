@@ -23,6 +23,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'tenant_id'
     ];
 
     /**
@@ -47,4 +48,10 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    public function tenant()
+{
+    return $this->belongsTo(Tenant::class);
+}
+
 }

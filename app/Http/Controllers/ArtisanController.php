@@ -26,4 +26,21 @@ class ArtisanController extends Controller
         return response()->json(['message' => 'Gagal menjalankan migrasi.', 'error' => $e->getMessage()], 500);
     }
     }
+
+    public function runTenantMigrations()
+{
+    try {
+        Artisan::call('tenants:migrate');
+
+        return response()->json([
+            'message' => 'Migrasi tenant berhasil dijalankan.',
+            'output' => Artisan::output(),
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'message' => 'Gagal menjalankan migrasi tenant.',
+            'error' => $e->getMessage(),
+        ], 500);
+    }
+}
 }
