@@ -10,78 +10,6 @@ use RouterOS\Query;
 
 class OpenVPNController extends CentralController
 {
-    public function createOpenVpnClient(Request $request)
-    {
-        // Validasi inputan dari request
-        $request->validate([
-            'client_name' => 'required|string|max:255',
-            'server_ip' => 'required|ip',
-            'username' => 'required|string',
-            'password' => 'required|string',
-            'certificate' => 'nullable|string',
-            'cipher' => 'nullable|string',
-            'auth' => 'nullable|string',
-        ]);
-
-        // Ambil data dari request
-        $clientName = $request->input('client_name');
-        $serverIp = $request->input('server_ip');
-        $username = $request->input('username');
-        $password = $request->input('password');
-        $certificate = $request->input('certificate', 'none');
-        $cipher = $request->input('cipher', 'blowfish128');
-        $auth = $request->input('auth', 'sha256');
-
-        try {
-            // Dapatkan koneksi ke MikroTik
-            $client = $this->getClient();
-
-            // Membuat query OpenVPN Client
-            $query = new Query('/interface/ovpn-client/add');
-            $query->equal('name', $clientName);
-            $query->equal('connect-to', $serverIp);
-            $query->equal('port', '1194');
-            $query->equal('protocol', 'tcp');
-            $query->equal('user', $username);
-            $query->equal('password', $password);
-            $query->equal('cipher', $cipher);
-            $query->equal('auth', $auth);
-            $query->equal('certificate', $certificate);
-            $query->equal('tls-version', 'any');
-            $query->equal('use-peer-dns', 'yes');
-            $query->equal('add-default-route', 'yes');
-
-            // Kirim query ke MikroTik dan baca response
-            $response = $client->query($query)->read();
-
-            // Membuat perintah terminal MikroTik berdasarkan response
-            $command = "/interface/ovpn-client/add " .
-                "name=\"{$clientName}\" " .
-                "connect-to=\"{$serverIp}\" " .
-                "port=1194 " .
-                "protocol=tcp " .
-                "user=\"{$username}\" " .
-                "password=\"{$password}\" " .
-                "cipher=\"{$cipher}\" " .
-                "auth=\"{$auth}\" " .
-                "certificate=\"{$certificate}\" " .
-                "tls-version=\"any\" " .
-                "use-peer-dns=yes " .
-                "add-default-route=yes";
-
-            return response()->json([
-                'message' => 'OpenVPN Client berhasil dibuat',
-                'terminal_command' => $command, // Output perintah terminal MikroTik
-                'data' => $response
-            ], 200);
-
-        } catch (\Exception $e) {
-            // Tangani error jika koneksi atau query gagal
-            return response()->json([
-                'message' => 'Gagal membuat OpenVPN Client: ' . $e->getMessage()
-            ], 400);
-        }
-    }
 
     public function createOpenVpnClient1(Request $request)
 {
@@ -175,4 +103,108 @@ class OpenVPNController extends CentralController
             ], 500);
         }
     }
+
+    public function configureVpnServer(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'server_ip' => 'required|ip',
+            'username' => 'required|string|max:255',
+            'password' => 'required|string|max:255',
+            'client_ip_range' => 'required|string',
+            'dns_servers' => 'nullable|string',
+            'certificate' => 'nullable|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Data tidak lengkap atau tidak valid',
+                'errors' => $validator->errors()
+            ], 500);
+        }
+
+        $vpnType = ('openvpn');
+        $serverIp = $request->input('server_ip');
+        $username = $request->input('username');
+        $password = $request->input('password');
+        $clientIpRange = $request->input('client_ip_range');
+        $dnsServers = $request->input('dns_servers');
+        $certificate = $request->input('certificate', 'none');
+
+        if (!$dnsServers) {
+            $dnsServers = '8.8.8.8,8.8.4.4';
+        }
+
+        if ($vpnType == 'openvpn') {
+            $vpnCommands = [
+                "/interface ovpn-server server set enabled=yes cipher=aes256 default-profile=default",
+                "/interface ovpn-client add name=openvpn-client connect-to={$serverIp} port=1194 protocol=tcp user={$username} password={$password} certificate={$certificate} tls-version=any use-peer-dns=yes add-default-route=yes",
+                "/ip pool add name=openvpn-pool ranges={$clientIpRange}",
+                "/ppp profile add name=openvpn-profile local-address={$serverIp} remote-address=openvpn-pool dns-server={$dnsServers}",
+                "/ppp secret add name={$username} password={$password} profile=openvpn-profile service=ovpn",
+                "/ip firewall filter add chain=input action=accept protocol=tcp port=1194 comment=\"Allow OpenVPN\"",
+                "/ip firewall nat add chain=srcnat out-interface=ether1 action=masquerade"
+            ];
+        }
+        // Pastikan pemisah baris yang benar
+        $plainTextCommands = implode("\n", $vpnCommands);
+
+        // Kembalikan respons dengan opsi teks biasa
+        return response($plainTextCommands)
+            ->header('Content-Type', 'text/plain');
+    }
+
+    public function configureOpenVpnClient(Request $request)
+{
+    // Validasi inputan dari request
+    $validator = Validator::make($request->all(), [
+        'server_ip' => 'required|ip',
+        'client_ip' => 'required|ip',
+        'username' => 'required|string|max:255',
+        'password' => 'required|string|max:255',
+        'certificate' => 'nullable|string', // Sertifikat untuk OpenVPN (opsional)
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'message' => 'Data tidak lengkap atau tidak valid',
+            'errors' => $validator->errors()
+        ], 500);
+    }
+
+    // Ambil data dari request
+    $serverIp = $request->input('server_ip');
+    $clientIp = $request->input('client_ip');
+    $username = $request->input('username');
+    $password = $request->input('password');
+    $certificate = $request->input('certificate', 'none');
+
+    // Perintah untuk konfigurasi OpenVPN client di MikroTik kedua
+    $vpnClientCommands = [
+        "/interface ovpn-client add name=openvpn-client connect-to={$serverIp} port=1194 protocol=tcp user={$username} password={$password} certificate={$certificate} tls-version=any use-peer-dns=yes add-default-route=yes"
+    ];
+
+    $plainTextCommands = implode("\n", $vpnClientCommands);
+
+    return response()->json([
+        'message' => 'Perintah terminal untuk OpenVPN Client berhasil dibuat',
+        'vpn_client_commands' => $vpnClientCommands,
+        'plaintext_commands' => $plainTextCommands
+    ], 200);
+    }
+
+    public function checkVpnStatus()
+{
+    $client = new Client([
+        'host' => '192.168.88.1', // Ganti dengan IP MikroTik
+        'user' => 'admin',
+        'pass' => 'password',
+        'port' => 8728, // API port MikroTik
+    ]);
+
+    $query = new Query('/interface ovpn-server server print');
+    $response = $client->query($query)->read();
+
+    return response()->json($response);
+}
+
 }

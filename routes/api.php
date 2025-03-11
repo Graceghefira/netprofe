@@ -90,6 +90,8 @@ Route::middleware(['auth:sanctum', 'tenant','role:admin,pegawai'])->group(functi
     Route::post('/mikrotik/get-data-by-date-pagi', [ByteController::class, 'getHotspotUsersByDateRangeWithLoginCheck']);
     Route::post('/mikrotik/get-data-by-date-role', [ByteController::class, 'getHotspotUsersByUniqueRole']);
     Route::get('/mikrotik/get-data-all-profile', [ByteController::class, 'getHotspotProfile']);
+    
+    Route::get('/mikrotik/get-data-users', [ByteController::class, 'getHotspotUsers']);
     Route::delete('/mikrotik/deleteExpiredHotspotUsersByPhone/{no_hp}', [ByteController::class, 'deleteHotspotUserByPhoneNumber']);
 
 });
@@ -98,10 +100,14 @@ Route::middleware(['auth:sanctum','role:admin,pegawai'])->group(function () {
     Route::get('/mikrotik/get-data-users-by-token', [AuthController::class, 'getUserByToken']);
 });
 
-Route::get('/mikrotik/get-data-users', [ByteController::class, 'getHotspotUsers']);
+
+
 
 Route::post('/mikrotik/OpenVPN', [OpenVPNController::class, 'createOpenVpnClient1']);
-Route::post('/mikrotik/Check-Vpn', [OpenVPNController::class, 'checkInterface']);
+Route::post('/mikrotik/OpenVPNServer', [OpenVPNController::class, 'configureVpnServer']);
+Route::post('/mikrotik/OpenVPNClient', [OpenVPNController::class, 'configureOpenVpnClient']);
+Route::post('/mikrotik/Check-Vpn1', [OpenVPNController::class, 'checkInterface']);
+Route::post('/mikrotik/Check-Vpn', [OpenVPNController::class, 'checkVpnStatus']);
 
 Route::post('/Check-voucher', [VoucherController::class, 'LoginVoucher']);
 Route::post('/delete-voucher-all-tenant', [VoucherController::class, 'DeleteAlltenant']);

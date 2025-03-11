@@ -290,13 +290,11 @@ class MikrotikController extends CentralController
 {
     $request->validate([
         'no_hp' => 'required|string|max:20',
-        'name' => 'sometimes|required|string|max:255',
         'profile' => 'nullable|string|max:50'
     ]);
 
     $profile = $request->input('profile', 'customer');
     $no_hp = $request->input('no_hp');
-    $name = $request->input('name', null);
 
     try {
          $client = $this->getClientLogin();
@@ -311,8 +309,7 @@ class MikrotikController extends CentralController
                 ->equal('name', $no_hp)
                 ->equal('password', $no_hp)
                 ->equal('profile', $profile)
-                ->equal('disabled', 'false')
-                ->equal('comment', "{$name}");
+                ->equal('disabled', 'false');
 
             $client->query($addUserQuery)->read();
 

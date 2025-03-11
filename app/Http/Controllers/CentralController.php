@@ -12,9 +12,9 @@ class CentralController extends Controller
     {
         $config = [
             'host' => '45.149.93.122',
-            'user' => 'admin',
-            'pass' => 'dhiva1029',
-            'port' => 8182,
+            'user' => 'netpro',
+            'pass' => 'netpro',
+            'port' => 8736,
         ];
 
         return new Client($config);
