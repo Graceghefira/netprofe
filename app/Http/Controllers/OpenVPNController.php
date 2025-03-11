@@ -76,33 +76,41 @@ class OpenVPNController extends CentralController
     }
 
     public function checkInterface(Request $request)
-    {
-        $request->validate([
-            'interface_name' => 'required|string'
-        ]);
+{
+    $request->validate([
+        'interface_name' => 'required|string'
+    ]);
 
-        try {
-            $client = $this->getClient();
+    try {
+        $client = $this->getClient();
 
-            $query = new Query('/interface/print');
-            $query->where('name', $request->interface_name);
+        $query = new Query('/interface/print');
+        $query->where('name', $request->interface_name);
 
-            $interfaces = $client->query($query)->read();
+        $interfaces = $client->query($query)->read();
 
+        if (count($interfaces) > 0) {
             return response()->json([
-                'exists' => count($interfaces) > 0,
-                'details' => "Vpn Sudah Ada"
+                'exists' => true,
+                'details' => "VPN Sudah Ada"
             ]);
-
-        } catch (\Exception $e) {
-            Log::error('Gagal memeriksa interface: ' . $e->getMessage());
-
+        } else {
             return response()->json([
-                'error' => 'Gagal terhubung ke Mikrotik',
-                'message' => $e->getMessage()
-            ], 500);
+                'exists' => false,
+                'details' => "VPN Belum Ada"
+            ]);
         }
+
+    } catch (\Exception $e) {
+        Log::error('Gagal memeriksa interface: ' . $e->getMessage());
+
+        return response()->json([
+            'error' => 'Gagal terhubung ke Mikrotik',
+            'message' => $e->getMessage()
+        ], 500);
     }
+}
+
 
     public function configureVpnServer(Request $request)
     {
