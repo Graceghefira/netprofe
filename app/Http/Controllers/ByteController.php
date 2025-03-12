@@ -303,19 +303,20 @@ class ByteController extends CentralController
     public function getHotspotUsersByUniqueRole(Request $request)
 {
     try {
-        $dbTable = $request->input('dbTable');
         $role = $request->input('role');
         $startDate = $request->input('startDate');
         $endDate = $request->input('endDate');
 
-        if (!$dbTable || !$startDate || !$endDate) {
+        if (!$startDate || !$endDate) {
             return response()->json(['error' => 'Parameter harus lengkap'], 400);
         }
 
         $startDate = $startDate . ' 00:00:00';
         $endDate = $endDate . ' 23:59:59';
 
-        $columnName = ($dbTable == 'wow_bandwith_log') ? 'interface_name' : 'user_name';
+        // Explicitly set the table name to 'user_bytes_log'
+        $dbTable = 'user_bytes_log'; // Set table name here
+        $columnName = 'user_name'; // Default column name for users
 
         $query = DB::table($dbTable)
             ->select(
@@ -379,12 +380,13 @@ class ByteController extends CentralController
             'total_bytes_out' => $totalBytesOut,
             'total_bytes' => $totalBytes,
             'role' => $role,
-            'dbTable' => $dbTable
+            'dbTable' => $dbTable // Returning table name
         ]);
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
     }
+
 
     public function logApiUsageBytes()
 {
