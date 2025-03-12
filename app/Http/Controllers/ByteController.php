@@ -388,7 +388,7 @@ class ByteController extends CentralController
 {
     try {
 
-        $client = $this->getClient();
+        $client = $this->getClientLogin();
 
         $userQuery = new Query('/ip/hotspot/user/print');
         $users = $client->query($userQuery)->read();
