@@ -2,11 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\DeleteHotspotUsersJob;
 use App\Models\Tenant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -213,25 +211,37 @@ class VoucherController extends CentralController
     $request->validate([
         'voucher_hours' => 'required|integer|min:1',
         'voucher_count' => 'required|integer|min:1',
+        'profile' => 'required|string',
     ]);
 
     $voucher_hours = $request->input('voucher_hours');
     $voucher_count = $request->input('voucher_count');
+    $profile = $request->input('profile');
 
     try {
         $client = $this->getClientLogin();
+
+        $profileQuery = (new Query('/ip/hotspot/user/profile/print'))
+            ->where('name', $profile);
+
+        $profileResult = $client->query($profileQuery)->read();
+
+        if (empty($profileResult)) {
+            return response()->json(['message' => "Profile '$profile' tidak ditemukan."], 404);
+        }
+
         $generatedUsernames = [];
 
         for ($i = 0; $i < $voucher_count; $i++) {
             $username = strtoupper(Str::random(8));
-            $password = $username ;
+            $password = $username;
             $expiry_time = now()->addMinutes(1)->format('Y-m-d H:i:s');
             $link_login = "https://hotspot.awh.co.id/login?username={$username}&password={$password}";
 
             $addUserQuery = (new Query('/ip/hotspot/user/add'))
                 ->equal('name', $username)
                 ->equal('password', $password)
-                ->equal('profile', 'Pelanggan')
+                ->equal('profile', $profile)
                 ->equal('comment', "status: inactive, expiry: $expiry_time");
 
             $client->query($addUserQuery)->read();
@@ -247,7 +257,7 @@ class VoucherController extends CentralController
             DB::table('voucher_lists')->insert([
                 'name' => $username,
                 'waktu' => $voucher_hours,
-                'profile' => 'Pelanggan',
+                'profile' => $profile,
                 'password' => $password,
                 'status' => 'Inactive',
                 'link_login' => $link_login,
