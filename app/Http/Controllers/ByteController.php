@@ -371,6 +371,8 @@ class ByteController extends CentralController
             $log->all_users = $users;
         }
 
+        $this->logApiUsageBytes();
+
         return response()->json([
             'details' => $logs,
             'total_bytes_in' => $totalBytesIn,
