@@ -54,8 +54,7 @@ class MikrotikController extends CentralController
     public function getHotspotUserByPhoneNumber($no_hp)
 {
     try {
-
-         $client = $this->getClientLogin();
+        $client = $this->getClientLogin();
 
         $query = new Query('/ip/hotspot/user/print');
         $query->where('name', $no_hp);
@@ -73,7 +72,9 @@ class MikrotikController extends CentralController
             $newKey = str_replace('.id', 'id', $key);
             $modifiedUser[$newKey] = $value;
         }
+
         $profileName = $user['profile'] ?? null;
+        $comment = $user['comment'] ?? 'No comment';
 
         $link = null;
         if ($profileName) {
@@ -83,12 +84,14 @@ class MikrotikController extends CentralController
         }
 
         $modifiedUser['link'] = $link ?? 'No link found';
+        $modifiedUser['comment'] = $comment;
 
         return response()->json(['user' => $modifiedUser]);
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
     }
+
 
     public function getHotspotUsersByProfileName($profile_name)
 {
