@@ -314,9 +314,8 @@ class ByteController extends CentralController
         $startDate = $startDate . ' 00:00:00';
         $endDate = $endDate . ' 23:59:59';
 
-        // Explicitly set the table name to 'user_bytes_log'
-        $dbTable = 'user_bytes_log'; // Set table name here
-        $columnName = 'user_name'; // Default column name for users
+        $dbTable = 'user_bytes_log';
+        $columnName = 'user_name'; 
 
         $query = DB::table($dbTable)
             ->select(

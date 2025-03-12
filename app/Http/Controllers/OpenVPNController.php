@@ -82,7 +82,7 @@ class OpenVPNController extends CentralController
     ]);
 
     try {
-        $client = $this->getClient();
+        $client = $this->getClientLogin();
 
         $query = new Query('/interface/print');
         $query->where('name', $request->interface_name);
