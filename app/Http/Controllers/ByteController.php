@@ -383,4 +383,115 @@ class ByteController extends CentralController
         return response()->json(['error' => $e->getMessage()], 500);
     }
     }
+
+    public function logApiUsageBytes()
+{
+    try {
+
+        $client = $this->getClient();
+
+        $userQuery = new Query('/ip/hotspot/user/print');
+        $users = $client->query($userQuery)->read();
+
+        $activeQuery = new Query('/ip/hotspot/active/print');
+        $activeUsers = $client->query($activeQuery)->read();
+
+        $totalBytesIn = session()->get('total_bytes_in', 0);
+        $totalBytesOut = session()->get('total_bytes_out', 0);
+
+        $activeUsersMap = [];
+        foreach ($activeUsers as $activeUser) {
+            $username = $activeUser['user'];
+            $activeUsersMap[$username] = $activeUser;
+        }
+
+        $modifiedUsers = array_map(function ($user) use (&$totalBytesIn, &$totalBytesOut, $activeUsersMap) {
+            $newUser = [];
+            foreach ($user as $key => $value) {
+                $newKey = str_replace('.id', 'id', $key);
+                $newUser[$newKey] = $value;
+            }
+
+            // Initialize bytes-in and bytes-out
+            $newUser['bytes-in'] = 0;
+            $newUser['bytes-out'] = 0;
+
+            // Check if the user is active
+            if (isset($activeUsersMap[$user['name']])) {
+                $activeUser = $activeUsersMap[$user['name']];
+                $newUser['bytes-in'] = isset($activeUser['bytes-in']) ? (int)$activeUser['bytes-in'] : 0;
+                $newUser['bytes-out'] = isset($activeUser['bytes-out']) ? (int)$activeUser['bytes-out'] : 0;
+            } else {
+                // Check if there's an existing log for the user
+                $existingUser = DB::table('user_bytes_log')
+                    ->where('user_name', $user['name'])
+                    ->orderBy('timestamp', 'desc')
+                    ->first();
+
+                if ($existingUser) {
+                    $newUser['bytes-in'] = (int)$existingUser->bytes_in;
+                    $newUser['bytes-out'] = (int)$existingUser->bytes_out;
+                }
+            }
+
+            // Get the previous log to compare with the current one
+            $lastLog = DB::table('user_bytes_log')
+                ->where('user_name', $newUser['name'])
+                ->orderBy('timestamp', 'desc')
+                ->first();
+
+            // Calculate the difference in bytes (only if the new value is larger)
+            $bytesInDifference = 0;
+            $bytesOutDifference = 0;
+
+            if ($lastLog) {
+                // Only calculate the difference if the new value is greater than the previous one
+                $bytesInDifference = max(0, $newUser['bytes-in'] - $lastLog->bytes_in); // Only positive change
+                $bytesOutDifference = max(0, $newUser['bytes-out'] - $lastLog->bytes_out); // Only positive change
+            } else {
+                // If no previous log, insert the first log without calculating a difference
+                $bytesInDifference = $newUser['bytes-in'];
+                $bytesOutDifference = $newUser['bytes-out'];
+            }
+
+            // Update total bytes
+            $totalBytesIn += $bytesInDifference;
+            $totalBytesOut += $bytesOutDifference;
+
+            // Only insert if there's a positive change in bytes
+            if ($bytesInDifference > 0 || $bytesOutDifference > 0) {
+                DB::table('user_bytes_log')->insert([
+                    'user_name' => $newUser['name'],
+                    'role' => isset($user['profile']) ? $user['profile'] : 'guest',
+                    'bytes_in' => $bytesInDifference,
+                    'bytes_out' => $bytesOutDifference,
+                    'timestamp' => now(),
+                ]);
+            }
+
+            return $newUser;
+        }, $users);
+
+        $totalBytes = $totalBytesIn + $totalBytesOut;
+
+        // Update session values
+        session()->put('total_bytes_in', $totalBytesIn);
+        session()->put('total_bytes_out', $totalBytesOut);
+
+        return response()->json([
+            'total_user' => count($modifiedUsers),
+            'users' => $modifiedUsers,
+            'total_bytes_in' => $totalBytesIn,
+            'total_bytes_out' => $totalBytesOut,
+            'total_bytes' => $totalBytes,
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['error' => $e->getMessage()], 500);
+    }
+}
+
+
+
+
+
 }
