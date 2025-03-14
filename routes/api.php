@@ -43,7 +43,7 @@ Route::get('/mikrotik/get-all-menu', [MenuController::class, 'getAllMenus']);
 Route::get('/mikrotik/get-all-order', [MenuController::class, 'getAllOrders']);
 
 Route::post('/mikrotik/add-hotspot-login', [MikrotikController::class, 'addHotspotUser1']);
-Route::post('/mikrotik/hotspot-user/{no_hp}', [MikrotikController::class, 'editHotspotUser']);
+
 
 Route::get('/mikrotik/Router-info', [TerminalController::class, 'getRouterInfo']);
 Route::post('/mikrotik/terminal-mikrotik', [TerminalController::class, 'executeMikrotikCommand']);
@@ -62,6 +62,7 @@ Route::middleware(['auth:sanctum', 'tenant','role:admin,pegawai'])->group(functi
     Route::get('/mikrotik/get-Hotspot-by-phone/{no_hp}', [MikrotikController::class, 'getHotspotUserByPhoneNumber']);
     Route::get('/mikrotik/get-Hotspot-users/{profile_name}', [MikrotikController::class, 'getHotspotUsersByProfileName']);
     Route::post('/mikrotik/add-Hotspot-User', [MikrotikController::class, 'addHotspotUser']);
+    Route::post('/mikrotik/hotspot-user/{no_hp}', [MikrotikController::class, 'editHotspotUser']);
 
     Route::post('/mikrotik/add-script', [ScriptController::class, 'addScriptAndScheduler']);
 

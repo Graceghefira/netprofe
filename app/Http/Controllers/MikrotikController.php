@@ -338,7 +338,7 @@ class MikrotikController extends CentralController
 
         try {
 
-         $client = $this->getClient();
+         $client = $this->getClientLogin();
 
             $checkQuery = (new Query('/ip/hotspot/user/print'))->where('name', $no_hp);
             $existingUsers = $client->query($checkQuery)->read();
