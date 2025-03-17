@@ -1,30 +1,14 @@
 <?php
 
 namespace App\Http\Controllers;
-use RouterOS\Client;
-use RouterOS\Query;
+
 use Illuminate\Http\Request;
+use RouterOS\Query;
 
-
-
-class DHCPController extends Controller
+class DHCPController extends CentralController
 {
-    protected function getClient()
-{
-    $config = [
-        'host' => 'id-4.hostddns.us',  // Ganti dengan domain DDNS kamu
-        'user' => 'admin',             // Username Mikrotik
-        'pass' => 'admin2',            // Password Mikrotik
-        'port' => 21326,                // Port API Mikrotik (default 8728)
-    ];
-
-    return new Client($config);
-
-    }
-
     public function addOrUpdateDhcp(Request $request)
 {
-    // Validasi request untuk memastikan data yang masuk benar
     $request->validate([
         'name' => 'required|string',
         'interface' => 'required|string',
@@ -33,18 +17,15 @@ class DHCPController extends Controller
         'add_arp' => 'required|boolean',
     ]);
 
-    // Panggil fungsi getClient untuk mendapatkan koneksi Mikrotik
-    $client = $this->getClient();
 
+         $client = $this->getClientLogin();
     try {
-        // Ambil daftar DHCP server dan cek apakah sudah ada yang menggunakan nama yang sama
         $query = new Query('/ip/dhcp-server/print');
         $dhcpServers = $client->query($query)->read();
 
         $existingDhcp = collect($dhcpServers)->firstWhere('name', $request->name);
 
         if ($existingDhcp) {
-            // Jika DHCP server dengan nama yang sama ditemukan, lakukan update
             $updateQuery = new Query('/ip/dhcp-server/set');
             $updateQuery->equal('numbers', $existingDhcp['.id'])
                 ->equal('interface', $request->interface)
@@ -59,7 +40,6 @@ class DHCPController extends Controller
                 'message' => 'DHCP server updated successfully!',
             ]);
         } else {
-            // Jika tidak ditemukan, tambahkan DHCP server baru
             $addQuery = (new Query('/ip/dhcp-server/add'))
                 ->equal('name', $request->name)
                 ->equal('interface', $request->interface)
@@ -76,7 +56,6 @@ class DHCPController extends Controller
             ]);
         }
     } catch (\Exception $e) {
-        // Tangani error jika ada
         return response()->json([
             'status' => 'error',
             'message' => 'Failed to process DHCP server: ' . $e->getMessage(),
@@ -86,38 +65,32 @@ class DHCPController extends Controller
 
     public function addOrUpdateNetwork(Request $request)
 {
-    // Validasi request untuk memastikan data yang masuk benar
+
     $request->validate([
-        'address' => 'required|string',       // Alamat network (contoh: 192.168.1.0/24)
-        'gateway' => 'required|string',       // Gateway untuk network
-        'dns_server' => 'required|string',    // DNS Server untuk network
-        'netmask' => 'nullable|integer',      // Netmask opsional sebagai integer
+        'address' => 'required|string',
+        'gateway' => 'required|string',
+        'dns_server' => 'required|string',
+        'netmask' => 'nullable|integer',
     ]);
 
-    // Panggil fungsi getClient untuk mendapatkan koneksi Mikrotik
-    $client = $this->getClient();
-
+    $client = $this->getClientLogin();
     try {
-        // Ambil daftar network yang ada untuk melakukan pengecekan
+
         $query = new Query('/ip/dhcp-server/network/print');
         $networks = $client->query($query)->read();
 
-        // Cek apakah sudah ada network dengan address yang sama
         $existingNetwork = collect($networks)->firstWhere('address', $request->address);
 
         if ($existingNetwork) {
-            // Jika network dengan address yang sama ditemukan, lakukan update
             $updateQuery = new Query('/ip/dhcp-server/network/set');
             $updateQuery->equal('numbers', $existingNetwork['.id'])
                 ->equal('gateway', $request->gateway)
                 ->equal('dns-server', $request->dns_server);
 
-            // Hanya tambahkan netmask jika ada
             if (!is_null($request->netmask)) {
                 $updateQuery->equal('netmask', (int) $request->netmask);
             }
 
-            // Jalankan query update
             $client->query($updateQuery)->read();
 
             return response()->json([
@@ -125,18 +98,15 @@ class DHCPController extends Controller
                 'message' => 'Network updated successfully!'
             ]);
         } else {
-            // Jika tidak ditemukan, tambahkan network baru
             $addQuery = (new Query('/ip/dhcp-server/network/add'))
                 ->equal('address', $request->address)
                 ->equal('gateway', $request->gateway)
                 ->equal('dns-server', $request->dns_server);
 
-            // Hanya tambahkan netmask jika ada
             if (!is_null($request->netmask)) {
                 $addQuery->equal('netmask', (int) $request->netmask);
             }
 
-            // Jalankan query untuk menambah network baru
             $response = $client->query($addQuery)->read();
 
             return response()->json([
@@ -146,7 +116,6 @@ class DHCPController extends Controller
             ]);
         }
     } catch (\Exception $e) {
-        // Tangani error jika ada
         return response()->json([
             'status' => 'error',
             'message' => 'Failed to process network: ' . $e->getMessage(),
@@ -156,18 +125,15 @@ class DHCPController extends Controller
 
     public function makeLeaseStatic(Request $request)
     {
-        // Validasi request dengan tambahan input untuk IP binding
         $request->validate([
-            'address' => 'required|ip',  // IP Address dari lease
-            'comment' => 'nullable|string',  // Opsional: Komentar untuk lease
-            'binding_type' => 'nullable|string|in:blocked,bypassed,regular',  // Tipe IP binding (blocked, bypassed, regular)
-            'binding_comment' => 'nullable|string',  // Opsional: Komentar untuk IP binding
+            'address' => 'required|ip',
+            'comment' => 'nullable|string',
+            'binding_type' => 'nullable|string|in:blocked,bypassed,regular',
+            'binding_comment' => 'nullable|string',
         ]);
 
-        $client = $this->getClient();
-
+         $client = $this->getClientLogin();
         try {
-            // Ambil daftar lease berdasarkan address
             $query = new Query('/ip/dhcp-server/lease/print');
             $leases = $client->query($query)->read();
 
@@ -180,30 +146,26 @@ class DHCPController extends Controller
                 ], 404);
             }
 
-            // 1. Hapus lease dynamic terlebih dahulu
             $removeQuery = new Query('/ip/dhcp-server/lease/remove');
             $removeQuery->equal('numbers', $existingLease['.id']);
             $client->query($removeQuery)->read();
 
-            // 2. Tambahkan lease sebagai static lease
             $addStaticQuery = new Query('/ip/dhcp-server/lease/add');
             $addStaticQuery->equal('address', $request->input('address'))
                 ->equal('mac-address', $existingLease['mac-address'])
                 ->equal('server', $existingLease['server'])
                 ->equal('comment', $request->input('comment', ''))
-                ->equal('disabled', 'no'); // Pastikan lease diaktifkan
+                ->equal('disabled', 'no');
 
             $client->query($addStaticQuery)->read();
 
-            // 3. Tentukan tipe binding, default ke 'regular' jika tidak diisi
             $bindingType = $request->input('binding_type', 'regular');
 
-            // 4. Tambahkan ke IP binding dengan data yang sama
             $addIpBindingQuery = new Query('/ip/hotspot/ip-binding/add');
             $addIpBindingQuery->equal('mac-address', $existingLease['mac-address'])
                 ->equal('address', $request->input('address'))
-                ->equal('type', $bindingType)  // blocked, bypassed, atau regular (default)
-                ->equal('comment', $request->input('binding_comment', '')); // Komentar opsional
+                ->equal('type', $bindingType)
+                ->equal('comment', $request->input('binding_comment', ''));
 
             $client->query($addIpBindingQuery)->read();
 
@@ -219,27 +181,21 @@ class DHCPController extends Controller
         }
     }
 
-
     public function getLeases()
     {
-        // Panggil fungsi getClient untuk mendapatkan koneksi Mikrotik
-        $client = $this->getClient();
 
+         $client = $this->getClientLogin();
         try {
-            // Buat query untuk mengambil data leases dari DHCP server
             $query = new Query('/ip/dhcp-server/lease/print');
 
-            // Jalankan query
             $leases = $client->query($query)->read();
 
-            // Kembalikan response ke user
             return response()->json([
                 'status' => 'success',
                 'leases' => $leases
             ]);
 
         } catch (\Exception $e) {
-            // Tangani error jika ada
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to fetch leases: ' . $e->getMessage(),
@@ -249,27 +205,21 @@ class DHCPController extends Controller
 
     public function getDhcpServers()
 {
-    // Panggil fungsi getClient untuk mendapatkan koneksi Mikrotik
-    $client = $this->getClient();
 
+         $client = $this->getClientLogin();
     try {
-        // 1. Ambil data DHCP server
         $dhcpQuery = new Query('/ip/dhcp-server/print');
         $dhcpServers = $client->query($dhcpQuery)->read();
 
-        // 2. Ambil semua interface dari router
         $interfaceQuery = new Query('/interface/print');
         $interfaces = $client->query($interfaceQuery)->read();
 
-        // 3. Dapatkan daftar interface yang digunakan oleh DHCP server
         $usedInterfaces = collect($dhcpServers)->pluck('interface')->all();
 
-        // 4. Filter interface yang belum dipakai oleh DHCP server
         $availableInterfaces = collect($interfaces)->filter(function ($interface) use ($usedInterfaces) {
             return !in_array($interface['name'], $usedInterfaces) && $interface['disabled'] === 'false';
-        })->values(); // Reset index untuk hasil yang rapi
+        })->values();
 
-        // Kembalikan response ke user
         return response()->json([
             'status' => 'success',
             'dhcpServers' => $dhcpServers,
@@ -277,7 +227,6 @@ class DHCPController extends Controller
         ]);
 
     } catch (\Exception $e) {
-        // Tangani error jika ada
         return response()->json([
             'status' => 'error',
             'message' => 'Failed to fetch data: ' . $e->getMessage(),
@@ -287,16 +236,13 @@ class DHCPController extends Controller
 
     public function getDhcpServerByName($name)
 {
-    // Panggil fungsi getClient untuk mendapatkan koneksi Mikrotik
-    $client = $this->getClient();
 
+         $client = $this->getClientLogin();
     try {
-        // 1. Ambil data DHCP server berdasarkan nama
         $dhcpQuery = new Query('/ip/dhcp-server/print');
-        $dhcpQuery->where('name', $name); // Filter berdasarkan nama
+        $dhcpQuery->where('name', $name);
         $dhcpServer = $client->query($dhcpQuery)->read();
 
-        // Cek apakah DHCP server dengan nama tersebut ditemukan
         if (empty($dhcpServer)) {
             return response()->json([
                 'status' => 'error',
@@ -304,14 +250,12 @@ class DHCPController extends Controller
             ], 404);
         }
 
-        // Kembalikan response dengan detail DHCP server
         return response()->json([
             'status' => 'success',
             'dhcpServer' => $dhcpServer
         ]);
 
     } catch (\Exception $e) {
-        // Tangani error jika ada
         return response()->json([
             'status' => 'error',
             'message' => 'Failed to fetch data: ' . $e->getMessage(),
@@ -321,24 +265,18 @@ class DHCPController extends Controller
 
     public function getNetworks()
     {
-        // Panggil fungsi getClient untuk mendapatkan koneksi Mikrotik
-        $client = $this->getClient();
-
+         $client = $this->getClientLogin();
         try {
-            // Buat query untuk mengambil data network dari DHCP server
             $query = new Query('/ip/dhcp-server/network/print');
 
-            // Jalankan query
             $networks = $client->query($query)->read();
 
-            // Kembalikan response ke user
             return response()->json([
                 'status' => 'success',
                 'networks' => $networks
             ]);
 
         } catch (\Exception $e) {
-            // Tangani error jika ada
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to fetch networks: ' . $e->getMessage(),
@@ -348,25 +286,18 @@ class DHCPController extends Controller
 
     public function getNetworksByGateway($gateway)
 {
-    // Panggil fungsi getClient untuk mendapatkan koneksi Mikrotik
-    $client = $this->getClient();
-
+         $client = $this->getClientLogin();
     try {
-        // Buat query untuk mengambil data network dari DHCP server dengan filter berdasarkan gateway
         $query = (new Query('/ip/dhcp-server/network/print'))
-                    ->where('gateway', $gateway); // Filter berdasarkan gateway
-
-        // Jalankan query
+                    ->where('gateway', $gateway);
         $networks = $client->query($query)->read();
 
-        // Kembalikan response ke user
         return response()->json([
             'status' => 'success',
             'networks' => $networks
         ]);
 
     } catch (\Exception $e) {
-        // Tangani error jika ada
         return response()->json([
             'status' => 'error',
             'message' => 'Failed to fetch networks by gateway: ' . $e->getMessage(),
@@ -376,15 +307,11 @@ class DHCPController extends Controller
 
     public function deleteDhcpServerByName($name)
     {
-        // Panggil fungsi getClient untuk mendapatkan koneksi Mikrotik
-        $client = $this->getClient();
-
+         $client = $this->getClientLogin();
         try {
-            // Pertama, ambil data DHCP server untuk mendapatkan ID server berdasarkan nama
             $query = new Query('/ip/dhcp-server/print');
             $dhcpServers = $client->query($query)->read();
 
-            // Cari DHCP server berdasarkan nama
             $dhcpServer = collect($dhcpServers)->firstWhere('name', $name);
 
             if (!$dhcpServer) {
@@ -394,21 +321,17 @@ class DHCPController extends Controller
                 ], 404);
             }
 
-            // Buat query untuk menghapus DHCP server berdasarkan ID
             $deleteQuery = new Query('/ip/dhcp-server/remove');
             $deleteQuery->equal('numbers', $dhcpServer['.id']);
 
-            // Jalankan query delete
             $client->query($deleteQuery)->read();
 
-            // Kembalikan response sukses
             return response()->json([
                 'status' => 'success',
                 'message' => 'DHCP server deleted successfully.',
             ]);
 
         } catch (\Exception $e) {
-            // Tangani error jika ada
             return response()->json([
                 'status' => 'error',
                 'message' => 'Failed to delete DHCP server: ' . $e->getMessage(),
@@ -418,15 +341,11 @@ class DHCPController extends Controller
 
     public function deleteDhcpNetworkByGateway($gateway)
 {
-    // Panggil fungsi getClient untuk mendapatkan koneksi Mikrotik
-    $client = $this->getClient();
-
+         $client = $this->getClientLogin();
     try {
-        // Ambil data network untuk mendapatkan ID berdasarkan gateway
         $query = new Query('/ip/dhcp-server/network/print');
         $dhcpNetworks = $client->query($query)->read();
 
-        // Cari network berdasarkan gateway
         $dhcpNetwork = collect($dhcpNetworks)->firstWhere('gateway', $gateway);
 
         if (!$dhcpNetwork) {
@@ -436,11 +355,9 @@ class DHCPController extends Controller
             ], 404);
         }
 
-        // Buat query untuk menghapus network berdasarkan ID
         $deleteQuery = new Query('/ip/dhcp-server/network/remove');
         $deleteQuery->equal('numbers', $dhcpNetwork['.id']);
 
-        // Jalankan query delete
         $client->query($deleteQuery)->read();
 
         return response()->json([
@@ -458,39 +375,29 @@ class DHCPController extends Controller
 
     public function deleteDhcpLeaseAndIpBindingByAddress($address)
     {
-        // Panggil fungsi getClient untuk mendapatkan koneksi Mikrotik
-        $client = $this->getClient();
-
+         $client = $this->getClientLogin();
         try {
-            // Ambil data lease untuk mendapatkan ID berdasarkan address
             $queryLease = new Query('/ip/dhcp-server/lease/print');
             $dhcpLeases = $client->query($queryLease)->read();
 
-            // Cari lease berdasarkan address
             $dhcpLease = collect($dhcpLeases)->firstWhere('address', $address);
 
             if ($dhcpLease) {
-                // Buat query untuk menghapus lease berdasarkan ID
                 $deleteLeaseQuery = new Query('/ip/dhcp-server/lease/remove');
                 $deleteLeaseQuery->equal('numbers', $dhcpLease['.id']);
 
-                // Jalankan query delete lease
                 $client->query($deleteLeaseQuery)->read();
             }
 
-            // Ambil data IP binding untuk mendapatkan ID berdasarkan address
             $queryIpBinding = new Query('/ip/hotspot/ip-binding/print');
             $ipBindings = $client->query($queryIpBinding)->read();
 
-            // Cari IP binding berdasarkan address
             $ipBinding = collect($ipBindings)->firstWhere('address', $address);
 
             if ($ipBinding) {
-                // Buat query untuk menghapus IP binding berdasarkan ID
                 $deleteIpBindingQuery = new Query('/ip/hotspot/ip-binding/remove');
                 $deleteIpBindingQuery->equal('numbers', $ipBinding['.id']);
 
-                // Jalankan query delete IP binding
                 $client->query($deleteIpBindingQuery)->read();
             }
 
@@ -506,7 +413,4 @@ class DHCPController extends Controller
             ], 500);
         }
     }
-
-
-
 }

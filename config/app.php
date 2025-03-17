@@ -123,10 +123,4 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
-    'aliases' => [
-    // other aliases
-    'MQTT' => \PhpMqtt\Client\Facades\MQTT::class,
-    ],
-
-
 ];

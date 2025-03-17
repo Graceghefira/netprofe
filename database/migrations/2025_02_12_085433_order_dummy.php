@@ -9,12 +9,13 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-    public function up(): void
+    public function up()
     {
-        Schema::create('mikrotik_logs', function (Blueprint $table) {
+        Schema::create('menus', function (Blueprint $table) {
             $table->id();
-            $table->string('username');
-            $table->string('status');
+            $table->string('name');
+            $table->decimal('price', 10, 2);
+            $table->integer('expiry_time'); // dalam menit
             $table->timestamps();
         });
     }
@@ -24,6 +25,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('mikrotik_logs');
+        Schema::dropIfExists('menus');
     }
 };

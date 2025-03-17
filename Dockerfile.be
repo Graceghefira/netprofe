@@ -1,17 +1,18 @@
-FROM nginx:alpine as nginx-stage
+FROM nginx:alpine
 
-# Install dependencies
-RUN apk add --no-cache bash curl mysql-client redis supervisor
+# Periksa dan tambahkan grup/user jika belum ada
+RUN getent group www-data || addgroup -S www-data && \
+    getent passwd www-data || adduser -S www-data -G www-data
 
-# Copy configuration
+# Copy Nginx configuration
 COPY ./nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf
+
+# Copy Laravel application files
 COPY ./netpro /usr/share/nginx/html
 
-# Add supervisord configuration
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+# Expose Nginx and MySQL ports
+EXPOSE 80 443 3306
 
-# Expose ports
-EXPOSE 8081 8443 3307 6381
+# Run both Nginx and MySQL as the main CMD
+CMD ["sh", "-c", "mysqld & nginx -g 'daemon off;'"]
 
-# Start supervisord to manage all services
-CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
