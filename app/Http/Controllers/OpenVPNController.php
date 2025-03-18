@@ -138,7 +138,7 @@ class OpenVPNController extends CentralController
     $certificate = 'none';
 
     $vpnCommands = [
-        "/interface ovpn-client add name=openvpn-client connect-to={$serverIp} port=1194 protocol=tcp user={$username} password={$password} certificate={$certificate} auth=sha1 cipher=aes256 tls-version=any use-peer-dns=yes",
+        "/interface ovpn-client add name=openvpn-client connect-to={$serverIp} port=1194 protocol=tcp user={$username} password={$password} certificate={$certificate} auth=sha1 cipher=aes256-cbc tls-version=any use-peer-dns=yes",
 
         "/ip pool add name={$poolName} ranges={$clientIpRange}",
 
