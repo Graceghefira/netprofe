@@ -56,7 +56,6 @@ class AuthController extends Controller
         'name' => 'required|string|max:255',
         'email' => 'required|string|email|max:255|unique:users',
         'password' => 'required|string|min:6',
-        'role' => 'required|in:pegawai,admin,super_admin',
     ]);
 
     if (User::where('email', $request->email)->exists()) {
@@ -82,7 +81,7 @@ class AuthController extends Controller
         'name' => $request->name,
         'email' => $request->email,
         'password' => Hash::make($request->password),
-        'role' => $request->role,
+        'role' => 'admin',
         'tenant_id' => $tenant->id,
     ]);
 
