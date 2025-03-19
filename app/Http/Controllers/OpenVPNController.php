@@ -117,41 +117,62 @@ class OpenVPNController extends CentralController
     $validator = Validator::make($request->all(), [
         'username' => 'required|string|max:255',
         'password' => 'required|string|max:255',
-        'dns_servers' => 'nullable|string',
         'pool_name' => 'required|string',
         'client_ip_range' => 'required|string',
+        'port_Nat' => 'required|string',
+        'address_network' => 'required|string',
+        'port_address' => 'required|string'
     ]);
 
     if ($validator->fails()) {
         return response()->json([
             'message' => 'Data tidak lengkap atau tidak valid',
             'errors' => $validator->errors()
-        ], 500);
+        ], 400);
     }
 
     $serverIp = '45.149.93.122';
     $username = $request->input('username');
     $password = $request->input('password');
+    $natport = $request->input('port_Nat');
     $clientIpRange = $request->input('client_ip_range');
-    $poolName = $request->input('pool_name');
-    $dnsServers = $request->input('dns_servers', '8.8.8.8,8.8.4.4');
+    $addressNetwork = $request->input('address_network');
+    $portAddress = $request->input('port_address');
     $certificate = 'none';
+    $ovpnInterface = "ovpn-{$username}";
+    $poolName = "{$username}-pool";
+    $profileName = "{$username}-profile";
+    $clientName = "client-{$username}";
+
+    // **Menambahkan 1 ke last octet dari IP pool**
+    $ipParts = explode('.', $clientIpRange); // Pisahkan IP
+    if (count($ipParts) == 4) {
+        $ipParts[3] = (int) $ipParts[3] + 1; // Tambah 1 ke angka terakhir
+        if ($ipParts[3] > 254) {
+            $ipParts[3] = 2; // Hindari overflow
+        }
+        $localAddress = implode('.', $ipParts); // Gabungkan kembali
+    } else {
+        $localAddress = $clientIpRange; // Jika error, gunakan IP asli
+    }
 
     $vpnCommands = [
-        "/interface ovpn-client add name=openvpn-client connect-to={$serverIp} port=1194 protocol=tcp user={$username} password={$password} certificate={$certificate} auth=sha1 cipher=aes256-cbc tls-version=any use-peer-dns=yes",
-
         "/ip pool add name={$poolName} ranges={$clientIpRange}",
-
-        "/ppp profile add name=openvpn-profile local-address={$serverIp} remote-address=ovpn-pool dns-server={$dnsServers}",
-
-        "/ppp secret add name={$username} password={$password} profile=openvpn-profile service=ovpn"
+        "/ppp profile add name={$profileName} local-address={$localAddress} remote-address={$poolName}",
+        "/ppp secret add name={$username} password={$password} profile={$profileName} service=ovpn",
+        "/ip firewall nat add chain=dstnat protocol=tcp dst-address={$serverIp} dst-port={$natport} action=dst-nat to-addresses={$addressNetwork} to-ports={$portAddress} comment=Forward_{$username}",
+        "/interface ovpn-client add name={$clientName} connect-to={$serverIp} port=1194 protocol=tcp user={$username} password={$password} certificate={$certificate} auth=sha1 cipher=aes256-cbc tls-version=any use-peer-dns=yes",
+        "/ip firewall nat add chain=srcnat out-interface=<ovpn-{$username}> action=masquerade comment=Masquerade_{$username}",
     ];
 
-    $plainTextCommands = implode("\n", $vpnCommands);
+    return response()->json([
+        'message' => 'VPN configuration generated successfully',
+        'commands' => $vpnCommands
+    ]);
+    }
 
-    return response($plainTextCommands)
-        ->header('Content-Type', 'text/plain');
-}
+
+
 
     public function checkVpnStatus()
 {
@@ -168,33 +189,4 @@ class OpenVPNController extends CentralController
     return response()->json($response);
     }
 
-    public function configureNat(Request $request)
-{
-    $validator = Validator::make($request->all(), [
-        'port_Nat' => 'required|string',
-        'address_network' => 'required|string',
-        'port_address' => 'required|string'
-    ]);
-
-    if ($validator->fails()) {
-        return response()->json([
-            'message' => 'Data tidak lengkap atau tidak valid',
-            'errors' => $validator->errors()
-        ], 500);
-    }
-
-    $serverIp = '45.149.93.122';
-    $natport = $request->input('port_Nat');
-    $addressNetwork = $request->input('address_network');
-    $portAddress = $request->input('port_address');
-
-    $natCommands = [
-        "/ip firewall nat add chain=dstnat protocol=tcp dst-address={$serverIp} dst-port={$natport} action=dst-nat to-addresses={$addressNetwork} to-ports={$portAddress} comment=\"Forward NAT\""
-    ];
-
-    $plainTextCommands = implode("\n", $natCommands);
-
-    return response($plainTextCommands)
-        ->header('Content-Type', 'text/plain');
-    }
 }
