@@ -10,93 +10,131 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
 
 class AuthController extends Controller
 {
     public function login(Request $request)
 {
-    $request->validate([
+    // Validasi input
+    $validator = Validator::make($request->all(), [
         'email' => 'required|email',
         'password' => 'required'
     ]);
 
-    if (!Auth::attempt($request->only('email', 'password'))) {
-        return response()->json(['message' => 'Unauthorized'], 401);
+    // Jika validasi gagal, kembalikan pesan error
+    if ($validator->fails()) {
+        return response()->json([
+            'message' => 'Validation failed',
+            'errors' => $validator->errors(),
+        ], 422);
     }
 
-    $user = Auth::user();
+    // Cek apakah email terdaftar
+    $user = User::where('email', $request->email)->first();
 
+    if (!$user) {
+        return response()->json([
+            'message' => 'Email tidak ditemukan'
+        ], 404); // HTTP 404 Not Found
+    }
+
+    // Cek apakah password benar
+    if (!Hash::check($request->password, $user->password)) {
+        return response()->json([
+            'message' => 'Password salah'
+        ], 401); // HTTP 401 Unauthorized
+    }
+
+    // Autentikasi user
+    Auth::login($user);
+
+    // Cek apakah user memiliki tenant
     $tenant = $user->tenant;
 
     if (!$tenant) {
-        return response()->json(['message' => 'Tenant not found'], 500);
+        return response()->json([
+            'message' => 'Tenant not found',
+            'errors' => ['tenant' => ['No tenant associated with this user.']]
+        ], 500);
     }
 
+    // Enkripsi Tenant ID
     $encryptedTenantData = [
-        'name' => Crypt::encryptString($tenant->id),  // Encrypting tenant name
+        'name' => Crypt::encryptString($tenant->id),
     ];
 
+    // Generate token
     $token = $user->createToken('auth_token')->plainTextToken;
 
+    // Ambil token tanpa prefix
     $cleanToken = explode('|', $token, 2)[1] ?? $token;
 
     return response()->json([
         'message' => 'Login successful',
         'user' => $user,
         'tenant' => $tenant,
-        'tenant_id' =>  $encryptedTenantData,
+        'tenant_id' => $encryptedTenantData,
         'token' => $cleanToken
-    ]);
-}
+    ], 200);
+    }
 
-    public function register(Request $request,ScriptController $scriptController)
-{
-    // Validate the request
-    $request->validate([
-        'name' => 'required|string|max:255',
-        'email' => 'required|string|email|max:255|unique:users',
-        'password' => 'required|string|min:6',
-    ]);
 
-    if (User::where('email', $request->email)->exists()) {
+    public function register(Request $request, ScriptController $scriptController)
+    {
+        // Validasi input
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:6',
+        ]);
+
+        // Jika validasi gagal, kembalikan respons dengan pesan error
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        // Cek apakah email sudah digunakan
+        if (User::where('email', $request->email)->exists()) {
+            return response()->json([
+                'message' => 'Email sudah digunakan.'
+            ], 409); // HTTP 409 Conflict
+        }
+
+        // Generate Tenant ID
+        $nameWithUnderscore = Str::slug($request->name, '_');
+        $tenantId = "netpro_" . $nameWithUnderscore;
+
+        // Cek apakah tenant ID sudah ada
+        if (Tenant::where('id', $tenantId)->exists()) {
+            return response()->json([
+                'message' => 'Tenant Sudah digunakan.'
+            ], 409); // HTTP 409 Conflict
+        }
+
+        // Buat Tenant baru
+        $tenant = Tenant::create([
+            'id' => $tenantId,
+        ]);
+
+        // Buat User baru
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'role' => 'admin',
+            'tenant_id' => $tenant->id,
+        ]);
+
         return response()->json([
-            'message' => 'Email already exists.',
-        ], 500);
+            'message' => 'User registered successfully',
+            'user' => $user
+        ], 201);
     }
 
-    $nameWithUnderscore = Str::slug($request->name, '_');
-    $tenantId = "netpro_" . $nameWithUnderscore;
-
-    if (Tenant::where('id', $tenantId)->exists()) {
-        return response()->json([
-            'message' => 'Tenant ID already exists.',
-        ], 500);
-    }
-
-    $tenant = Tenant::create([
-        'id' => $tenantId,
-    ]);
-
-    $user = User::create([
-        'name' => $request->name,
-        'email' => $request->email,
-        'password' => Hash::make($request->password),
-        'role' => 'admin',
-        'tenant_id' => $tenant->id,
-    ]);
-
-    // $scriptController->addScriptAndScheduler(new Request([
-    //     'script_name' => 'delete_voucher_script_' . $tenantId,
-    //     'scheduler_name' => 'delete_voucher_scheduler_' . $tenantId,
-    //     'interval' => '1m', // Set ke 1 menit
-    //     'tenant_id' => $tenantId,
-    // ]));
-
-    return response()->json([
-        'message' => 'User registered successfully',
-        'user' => $user
-    ], 201);
-    }
 
     public function logout(Request $request)
     {
