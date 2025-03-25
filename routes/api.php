@@ -104,8 +104,9 @@ Route::middleware(['auth:sanctum','role:admin,pegawai'])->group(function () {
 });
 
 
-Route::post('/configure-vpn-server', [OpenVPNController::class, 'configureVpnServer']);
+Route::post('/configure-vpn-server', [OpenVPNController::class, 'configureVpnServer1']);
 Route::post('/configure-nat', [OpenVPNController::class, 'configureNat']);
+
 
 Route::post('/mikrotik/OpenVPN', [OpenVPNController::class, 'createOpenVpnClient1']);
 Route::post('/mikrotik/OpenVPNServer', [OpenVPNController::class, 'configureVpnServer']);
