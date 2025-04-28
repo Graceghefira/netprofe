@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunkfuse=self.webpackChunkfuse||[]).push([[6816],{96816:(e,s,n)=>{n.r(s),n.d(s,{default:()=>t});const t=[{path:"",component:n(2951).I}]}}]);
