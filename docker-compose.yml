@@ -5,7 +5,7 @@ services:
       context: .
       dockerfile: Dockerfile
     labels:
-      lagoon.type: app
+      lagoon.type: php
     restart: unless-stopped
     environment:
       DB_HOST: ${DB_HOST}
@@ -24,6 +24,7 @@ services:
     image: nginx:alpine
     labels:
       lagoon.type: nginx
+      lagoon.autodeploy: "false"
     restart: unless-stopped
     ports:
       - "80:80"
@@ -40,7 +41,8 @@ services:
   db:
     image: mysql:5.7
     labels:
-      lagoon.type: db
+      lagoon.type: mysql
+      lagoon.autodeploy: "false"
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: ${DB_DATABASE}
