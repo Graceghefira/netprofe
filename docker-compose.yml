@@ -6,6 +6,7 @@ services:
       dockerfile: Dockerfile
     labels:
       lagoon.type: basic
+      lagoon.service.usecomposeports: true
     restart: unless-stopped
     environment:
       DB_HOST: ${DB_HOST}
@@ -13,8 +14,8 @@ services:
       DB_DATABASE: ${DB_DATABASE}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
-#    ports:
-#      - "9000:9000"
+    ports:
+      - "9000"
 #    volumes:
 #      - .:/var/www
 #    networks:
