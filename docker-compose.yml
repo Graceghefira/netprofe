@@ -5,8 +5,8 @@ services:
       context: .
       dockerfile: Dockerfile
     labels:
-      lagoon.type: web
-    container_name: laravel-app
+      lagoon.type: php
+    container_name: app
     restart: unless-stopped
     environment:
       DB_HOST: ${DB_HOST}
