@@ -13,12 +13,12 @@ services:
       DB_DATABASE: ${DB_DATABASE}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
-    ports:
-      - "9000:9000"
-    volumes:
-      - .:/var/www
-    networks:
-      - app-network
+#    ports:
+#      - "9000:9000"
+#    volumes:
+#      - .:/var/www
+#    networks:
+#      - app-network
 
   nginx:
     image: nginx:alpine
