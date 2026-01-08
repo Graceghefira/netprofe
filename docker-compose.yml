@@ -23,8 +23,7 @@ services:
   nginx:
     image: nginx:alpine
     labels:
-      lagoon.type: nginx
-      lagoon.autodeploy: "false"
+      lagoon.type: none
     restart: unless-stopped
     ports:
       - "80:80"
@@ -41,8 +40,7 @@ services:
   db:
     image: mysql:5.7
     labels:
-      lagoon.type: mysql
-      lagoon.autodeploy: "false"
+      lagoon.type: none
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: ${DB_DATABASE}
