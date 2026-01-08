@@ -6,7 +6,6 @@ services:
       dockerfile: Dockerfile
     labels:
       lagoon.type: php
-    container_name: app
     restart: unless-stopped
     environment:
       DB_HOST: ${DB_HOST}
@@ -23,7 +22,6 @@ services:
     image: nginx:alpine
     labels:
       lagoon.type: nginx
-    container_name: nginx
     restart: unless-stopped
     ports:
       - "80:80"
@@ -41,7 +39,6 @@ services:
     image: mysql:5.7
     labels:
       lagoon.type: mysql
-    container_name: db
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: ${DB_DATABASE}
@@ -52,7 +49,7 @@ services:
     networks:
       - app-network
     ports:
-      - "3307:3307"
+      - "3306:3306"
 
 volumes:
   dbdata:
