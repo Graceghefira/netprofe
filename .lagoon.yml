@@ -4,4 +4,6 @@ docker-compose-yaml: docker-compose.yml
 
 environments:
   main:
-    monitoring: disabled
+    routes:
+      autogenerate:
+        enabled: false
