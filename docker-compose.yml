@@ -4,6 +4,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    labels:
+      lagoon.type: web
     container_name: laravel-app
     restart: unless-stopped
     environment:
@@ -19,6 +21,8 @@ services:
 
   nginx:
     image: nginx:alpine
+    labels:
+      lagoon.type: nginx
     container_name: nginx
     restart: unless-stopped
     ports:
@@ -35,6 +39,8 @@ services:
 
   db:
     image: mysql:5.7
+    labels:
+      lagoon.type: mysql
     container_name: db
     restart: unless-stopped
     environment:
