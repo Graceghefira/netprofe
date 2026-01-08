@@ -5,7 +5,7 @@ services:
       context: .
       dockerfile: Dockerfile
     labels:
-      lagoon.type: php
+      lagoon.type: app
     restart: unless-stopped
     environment:
       DB_HOST: ${DB_HOST}
@@ -40,7 +40,7 @@ services:
   db:
     image: mysql:5.7
     labels:
-      lagoon.type: mysql
+      lagoon.type: db
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: ${DB_DATABASE}
