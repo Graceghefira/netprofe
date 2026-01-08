@@ -1,0 +1,7 @@
+project: netprofe
+
+docker-compose-yaml: docker-compose.yml
+
+environments:
+  main:
+    monitoring: disabled
